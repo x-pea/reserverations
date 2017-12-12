@@ -1,0 +1,6 @@
+.env
+.babelrc
+.eslintrc.js
+node_modules
+package-lock.json
+personal-key-pair-uwest2.pem
