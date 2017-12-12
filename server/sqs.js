@@ -1,6 +1,8 @@
-const Promise = require('bluebird');
-const AWS = require('aws-sdk');
-require('dotenv').config();
+import Promise from 'bluebird';
+import AWS from 'aws-sdk';
+import { config } from 'dotenv';
+
+config();
 
 AWS.config.update({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,

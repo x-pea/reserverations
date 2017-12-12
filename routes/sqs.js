@@ -1,5 +1,7 @@
-const router = require('express').Router();
-const { createQ, readQ, deleteMessage } = require('../server/sqs');
+import { Router } from 'express';
+import { createQ, readQ, deleteMessage } from '../server/sqs';
+
+const router = Router();
 
 router.get('/create', (req, res) => {
   createQ()

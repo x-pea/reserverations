@@ -1,12 +1,14 @@
-const assert = require('assert');
-const { should, expect } = require('chai');
-const {
+import assert from 'assert';
+import { should, expect } from 'chai';
+import {
   createQ,
   readMessage,
   deleteMessage,
   sendMessage
-} = require('../server/sqs');
-require('dotenv').config();
+} from '../server/sqs';
+import { config } from 'dotenv';
+
+config();
 
 describe('SQS', () => {
   const testURL = process.env.TEST_SQS_QUEUE_URL;

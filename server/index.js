@@ -1,6 +1,6 @@
-const express = require('express');
-const sqsRoute = require('../routes/sqs');
-require('dotenv').config();
+import express from 'express';
+import sqsRoute from '../routes/sqs';
+import { config } from 'dotenv';
 
 const app = express();
 const port = process.env.PORT || 8080

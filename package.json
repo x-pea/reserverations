@@ -4,13 +4,13 @@
   "description": "Service that will receive and store airbnb rentals",
   "scripts": {
     "start": "nodemon --exec babel-node -- server/index.js",
-    "test": "mocha"
+    "test": "mocha -R spec --compilers js:babel-register test/sqs_connection.js"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/sorbae/reserverations.git"
   },
-  "author": "",
+  "author": "Sorbae",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/sorbae/reserverations/issues"
@@ -39,5 +39,8 @@
     "eslint-plugin-import": "^2.8.0",
     "eslint-plugin-jsx-a11y": "^6.0.2",
     "eslint-plugin-react": "^7.5.1"
-  }
+  },
+  "eslintIgnore": [
+     "test/*.js"
+  ]
 }
