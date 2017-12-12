@@ -1,0 +1,5 @@
+.env
+.babelrc
+.eslintrc.js
+node_modules
+personal-key-pair-uwest2.pem
