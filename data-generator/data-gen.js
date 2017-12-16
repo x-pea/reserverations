@@ -4,7 +4,7 @@ const randomRangeNumber = (n1, n2) => {
   return random.number({ min: n1, max: n2 });
 };
 
-const hostOrExp = random.arrayElement(['rental', 'experience'])
+const hostOrExp = () => random.arrayElement(['rental', 'experience'])
 
 const randomDateRange = () => {
   const start = random.number(24);
@@ -18,7 +18,7 @@ const randomDateRange = () => {
   return range;
 };
 
-exports.createClientInput = (type) => {
+const createClientInput = (type) => {
   const entry = {
     dates: {},
     userID: random.uuid(),
@@ -32,7 +32,7 @@ exports.createClientInput = (type) => {
   return entry;
 };
 
-exports.createInventoryInput = (type) => {
+const createInventoryInput = (type) => {
   const entry = {
     blackoutDates: {},
     maxGuestCount: random.number(10),
@@ -41,3 +41,5 @@ exports.createInventoryInput = (type) => {
   entry.blackoutDates[randomRangeNumber(1, 12)] = randomDateRange();
   return entry;
 };
+
+export { createClientInput, createInventoryInput, hostOrExp };

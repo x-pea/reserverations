@@ -39,5 +39,4 @@ const transSend = (reservations) => {
 };
 
 // Exports for testing
-exports.transposeInput = transposeInput;
-exports.transSend = transSend;
+export { transposeInput, transSend };

@@ -1,15 +1,16 @@
 import assert from 'assert';
 import { expect } from 'chai';
 import Influx from 'influx';
+import Promise from 'bluebird';
 import { createQ, readMessage, deleteMessage, sendMessage, deleteQ } from '../server/sqs';
-import { createClientInput, createInventoryInput } from '../data-generator/data-gen';
+import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
 import { writePoints, createDatabase } from '../databases/reservations';
 import { transposeInput, transSend } from '../server/worker';
 import { config } from 'dotenv';
 
 config();
 
-describe('SQS', () => {
+xdescribe('SQS', () => {
   const testURL = process.env.TEST_SQS_QUEUE_URL;
   const qName = 'TEST';
   const testMessage = 'this is a test';
@@ -66,7 +67,7 @@ describe('SQS', () => {
   });
 });
 
-describe('Data generator', () => {
+xdescribe('Data generator', () => {
   describe('#createClientInput', () => {
     const rentalReservation = createClientInput('rental');
     const experienceReservation = createClientInput('experience');
@@ -109,7 +110,7 @@ describe('Data generator', () => {
   });
 });
 
-describe('InfluxDB', () => {
+xdescribe('InfluxDB', () => {
   const influx = new Influx.InfluxDB(process.env.INFLUX);
   const dbName = 'reservations';
 
@@ -149,6 +150,7 @@ describe('InfluxDB', () => {
         },
       },
     ];
+
     it('should write points into the database', (done) => {
       writePoints(entries, dbName)
         .then(() => influx.query(`select * from home where experienceShown='true'`))
@@ -187,7 +189,7 @@ describe('Mass data generation into influxDB', () => {
     dates: { 3: [23, 24, 25, 26, 27, 28] },
     userID: 'c62fcb9-4aef-b071-13c404d865ed',
     guestCount: 3,
-    experience: 'bfbb2c8-4240-424a-b62e3dde'
+    experience: 'bfbb2c8-4240-424a-b62e3dde',
   };
 
   const expectedRentalOutput = {
@@ -217,7 +219,7 @@ describe('Mass data generation into influxDB', () => {
   const actualRentalOutput = transposeInput(rentalInput);
   const actualExperienceOutput = transposeInput(experienceInput);
 
-  describe('#transposeInput', () => {
+  xdescribe('#transposeInput', () => {
     it('should tranpose rental data for storage in influxDB', () => {
       expect(actualRentalOutput).to.deep.equal(expectedRentalOutput);
     });
@@ -225,19 +227,39 @@ describe('Mass data generation into influxDB', () => {
       expect(actualExperienceOutput).to.deep.equal(expectedExperienceOutput);
     });
   });
-  describe('#transSend', () => {
+
+  xdescribe('#transSend', () => {
     it('should transpose a list of reservation entries and save them to influxDB', (done) => {
       transSend([rentalInput, experienceInput])
         .then(() => influx.query(`select * from home where experienceShown='false'`))
-        .then((rows) => { rows.forEach((row) => {
-          expect(row).to.have.property('userID');
-          expect(row).to.have.property('rental');
-          expect(row).to.have.property('dates');
-          expect(row).to.have.property('guestCount');
-          expect(row).to.have.property('time');
-        });
+        .then((rows) => {
+          rows.forEach((row) => {
+            expect(row).to.have.property('userID');
+            expect(row).to.have.property('rental');
+            expect(row).to.have.property('dates');
+            expect(row).to.have.property('guestCount');
+            expect(row).to.have.property('time');
+          });
         });
       done();
-    })
-  })
+    });
+  });
+
+  describe('#dataGenerator --> influxDB', () => {
+    it('should generate 100 sets of 100 random reservation entries', (done) => {
+      const promises = [];
+      for (let j = 0; j < 100; j++) {
+        const storage = [];
+        // test SQS message polling limit
+        for (let i = 0; i < 100; i++) {
+          storage.push(createClientInput(hostOrExp()));
+        }
+        promises.push(transSend(storage));
+      }
+      Promise.all(promises)
+        .then(() => influx.query('select * from home, experience'))
+        .then(rows => expect(rows.length).to.equal(10000))
+        .then(() => done());
+    });
+  });
 });

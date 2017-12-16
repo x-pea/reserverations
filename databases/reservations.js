@@ -2,7 +2,7 @@ import Influx from 'influx';
 
 const influx = new Influx.InfluxDB(process.env.INFLUX);
 
-exports.createDatabase = (dbName) => {
+const createDatabase = (dbName) => {
   return influx.getDatabaseNames()
     .then((names) => {
       if (!names.includes(dbName)) {
@@ -11,10 +11,12 @@ exports.createDatabase = (dbName) => {
     });
 };
 
-exports.writePoints = (points, dbName) => {
+const writePoints = (points, dbName) => {
   return influx.writePoints(points, {
     database: dbName,
     retentionPolicy: 'autogen',
     precision: 'ns',
   });
 };
+
+export { createDatabase, writePoints };
