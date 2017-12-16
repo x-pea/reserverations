@@ -246,7 +246,7 @@ describe('Mass data generation into influxDB', () => {
   });
 
   describe('#dataGenerator --> influxDB', () => {
-    it('should generate 100 sets of 100 random reservation entries', (done) => {
+    it('should generate 1000 sets of 10 random reservation entries', (done) => {
       const promises = [];
       for (let j = 0; j < 1000; j++) {
         const storage = [];
