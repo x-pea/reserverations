@@ -4,6 +4,7 @@ import Influx from 'influx';
 import { createQ, readMessage, deleteMessage, sendMessage, deleteQ } from '../server/sqs';
 import { createClientInput, createInventoryInput } from '../data-generator/data-gen';
 import { writePoints, createDatabase } from '../databases/reservations';
+import { transposeInput, transSend } from '../server/worker';
 import { config } from 'dotenv';
 
 config();
@@ -122,7 +123,7 @@ describe('InfluxDB', () => {
     });
   });
 
-  describe('#writePoint', () => {
+  describe('#writePoints', () => {
     const entries = [
       {
         measurement: 'home',
@@ -164,4 +165,79 @@ describe('InfluxDB', () => {
       done();
     });
   });
+});
+
+describe('Mass data generation into influxDB', () => {
+  const influx = new Influx.InfluxDB(process.env.INFLUX);
+  const dbName = 'reservations';
+
+  beforeEach(() => {
+    influx.dropMeasurement('home', dbName);
+    influx.dropMeasurement('experience', dbName);
+  });
+
+  const rentalInput = {
+    dates: { 7: [8, 9, 10] },
+    userID: 'f1808995-ccc-bacc-a2092af9796a',
+    guestCount: 1,
+    experienceShown: false,
+    rental: '4b8c8f13-d2bd-435d-ac000977',
+  };
+  const experienceInput = {
+    dates: { 3: [23, 24, 25, 26, 27, 28] },
+    userID: 'c62fcb9-4aef-b071-13c404d865ed',
+    guestCount: 3,
+    experience: 'bfbb2c8-4240-424a-b62e3dde'
+  };
+
+  const expectedRentalOutput = {
+    measurement: 'home',
+    tags: {
+      experienceShown: false,
+      userID: 'f1808995-ccc-bacc-a2092af9796a',
+      rental: '4b8c8f13-d2bd-435d-ac000977',
+    },
+    fields: {
+      dates: JSON.stringify({ 7: [8, 9, 10] }),
+      guestCount: 1,
+    },
+  };
+
+  const expectedExperienceOutput = {
+    measurement: 'experience',
+    tags: {
+      userID: 'c62fcb9-4aef-b071-13c404d865ed',
+      experience: 'bfbb2c8-4240-424a-b62e3dde',
+    },
+    fields: {
+      dates: JSON.stringify({ 3: [23, 24, 25, 26, 27, 28] }),
+      guestCount: 3,
+    },
+  };
+  const actualRentalOutput = transposeInput(rentalInput);
+  const actualExperienceOutput = transposeInput(experienceInput);
+
+  describe('#transposeInput', () => {
+    it('should tranpose rental data for storage in influxDB', () => {
+      expect(actualRentalOutput).to.deep.equal(expectedRentalOutput);
+    });
+    it('should tranpose experience data for storage in influxDB', () => {
+      expect(actualExperienceOutput).to.deep.equal(expectedExperienceOutput);
+    });
+  });
+  describe('#transSend', () => {
+    it('should transpose a list of reservation entries and save them to influxDB', (done) => {
+      transSend([rentalInput, experienceInput])
+        .then(() => influx.query(`select * from home where experienceShown='false'`))
+        .then((rows) => { rows.forEach((row) => {
+          expect(row).to.have.property('userID');
+          expect(row).to.have.property('rental');
+          expect(row).to.have.property('dates');
+          expect(row).to.have.property('guestCount');
+          expect(row).to.have.property('time');
+        });
+        });
+      done();
+    })
+  })
 });
