@@ -248,10 +248,10 @@ describe('Mass data generation into influxDB', () => {
   describe('#dataGenerator --> influxDB', () => {
     it('should generate 100 sets of 100 random reservation entries', (done) => {
       const promises = [];
-      for (let j = 0; j < 100; j++) {
+      for (let j = 0; j < 1000; j++) {
         const storage = [];
         // test SQS message polling limit
-        for (let i = 0; i < 100; i++) {
+        for (let i = 0; i < 10; i++) {
           storage.push(createClientInput(hostOrExp()));
         }
         promises.push(transSend(storage));
