@@ -1,10 +1,9 @@
 import assert from 'assert';
 import { expect } from 'chai';
-import Influx from 'influx';
 import Promise from 'bluebird';
 import { createQ, readMessage, deleteMessage, sendMessage, deleteQ } from '../server/sqs';
 import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
-import { writePoints, createDatabase } from '../databases/reservations';
+import { writePoints, createDatabase, influx } from '../databases/reservations';
 import { transposeInput, transSend } from '../server/worker';
 import { config } from 'dotenv';
 
@@ -111,7 +110,6 @@ xdescribe('Data generator', () => {
 });
 
 xdescribe('InfluxDB', () => {
-  const influx = new Influx.InfluxDB(process.env.INFLUX);
   const dbName = 'reservations';
 
   describe('#createDatabase', () => {
@@ -170,7 +168,6 @@ xdescribe('InfluxDB', () => {
 });
 
 describe('Mass data generation into influxDB', () => {
-  const influx = new Influx.InfluxDB(process.env.INFLUX);
   const dbName = 'reservations';
 
   beforeEach(() => {

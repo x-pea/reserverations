@@ -19,4 +19,4 @@ const writePoints = (points, dbName) => {
   });
 };
 
-export { createDatabase, writePoints };
+export { createDatabase, writePoints, influx };
