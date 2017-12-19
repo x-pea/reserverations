@@ -4,15 +4,15 @@ import Promise from 'bluebird';
 import { createQ, readMessage, deleteMessage, sendMessage, deleteQ } from '../server/sqs';
 import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
 import { writePoints, createDatabase, influx } from '../databases/reservations';
-import { transposeInput, transSend } from '../server/worker';
+import { parseReservation, saveReservation } from '../server/worker';
 import { config } from 'dotenv';
 
 config();
 
-xdescribe('SQS', () => {
+describe('SQS', () => {
   const testURL = process.env.TEST_SQS_QUEUE_URL;
   const qName = 'TEST';
-  const testMessage = 'this is a test';
+  const testMessage = JSON.stringify({ test: 'object' });
 
   describe('#createQueue', () => {
     it('should create a queue', (done) => {
@@ -20,7 +20,7 @@ xdescribe('SQS', () => {
         .then((results) => {
           expect(results).to.be.an('object');
           expect(results).to.have.property('ResponseMetadata');
-        })
+        });
       done();
     });
     it('should create a queue with the provided name', (done) => {
@@ -33,10 +33,10 @@ xdescribe('SQS', () => {
   describe('#sendMessage', () => {
     it('should send a message to designated queue', (done) => {
       sendMessage(testMessage, testURL)
-        .then((res) => {
-          expect(res.ResponseMetadata).to.be.an('object');
-          expect(res.MessageId).to.be.a('string');
-          expect(res.MD5OfMessageBody).to.be.a('string');
+        .then(({ ResponseMetadata, MessageId, MD5OfMessageBody }) => {
+          expect(ResponseMetadata).to.be.an('object');
+          expect(MessageId).to.be.a('string');
+          expect(MD5OfMessageBody).to.be.a('string');
         })
       done();
     });
@@ -45,9 +45,10 @@ xdescribe('SQS', () => {
   describe('#readMessage', () => {
     it('should poll messages from queue', (done) => {
       readMessage(testURL)
-        .then((res) => {
-          expect(res.Messages).to.have.lengthOf.above(0);
-          expect(res.Messages[0].Body).to.include(testMessage);
+        .then(({ Messages }) => {
+          expect(Messages).to.have.lengthOf.above(0);
+          expect(Messages[0].Body).to.include(testMessage);
+          expect(Messages[0].MessageId).to.be.a('string');
         });
       done();
     });
@@ -55,9 +56,9 @@ xdescribe('SQS', () => {
     it('should delete read messages in queue', (done) => {
       readMessage(testURL)
         .then(res => deleteMessage(res, testURL))
-        .then((res) => {
-          expect(res.ResponseMetadata).to.be.an('object');
-          expect(res.Messages).to.not.exist;
+        .then(({ ResponseMetadata, Messages }) => {
+          expect(ResponseMetadata).to.be.an('object');
+          expect(Messages).to.not.exist;
         })
         .then(() => deleteQ(testURL))
         .then(() => done())
@@ -167,7 +168,7 @@ xdescribe('InfluxDB', () => {
   });
 });
 
-describe('Mass data generation into influxDB', () => {
+xdescribe('Mass data generation into influxDB', () => {
   const dbName = 'reservations';
 
   beforeEach(() => {
@@ -213,10 +214,10 @@ describe('Mass data generation into influxDB', () => {
       guestCount: 3,
     },
   };
-  const actualRentalOutput = transposeInput(rentalInput);
-  const actualExperienceOutput = transposeInput(experienceInput);
+  const actualRentalOutput = parseReservation(rentalInput);
+  const actualExperienceOutput = parseReservation(experienceInput);
 
-  xdescribe('#transposeInput', () => {
+  describe('#parseReservation', () => {
     it('should tranpose rental data for storage in influxDB', () => {
       expect(actualRentalOutput).to.deep.equal(expectedRentalOutput);
     });
@@ -225,9 +226,9 @@ describe('Mass data generation into influxDB', () => {
     });
   });
 
-  xdescribe('#transSend', () => {
+  describe('#saveReservation', () => {
     it('should transpose a list of reservation entries and save them to influxDB', (done) => {
-      transSend([rentalInput, experienceInput])
+      saveReservation([rentalInput, experienceInput])
         .then(() => influx.query(`select * from home where experienceShown='false'`))
         .then((rows) => {
           rows.forEach((row) => {
@@ -251,12 +252,37 @@ describe('Mass data generation into influxDB', () => {
         for (let i = 0; i < 10; i++) {
           storage.push(createClientInput(hostOrExp()));
         }
-        promises.push(transSend(storage));
+        promises.push(saveReservation(storage));
       }
       Promise.all(promises)
         .then(() => influx.query('select * from home, experience'))
         .then(rows => expect(rows.length).to.equal(10000))
         .then(() => done());
+    });
+  });
+});
+
+describe('serviceWorker', () => {
+  const clientMessage = JSON.stringify({
+    dates: { 7: [8, 9, 10] },
+    userID: 'f1808995-ccc-bacc-a2092af9796a',
+    guestCount: 1,
+    experienceShown: false,
+    rental: '4b8c8f13-d2bd-435d-ac000977',
+  });
+  const inventoryMessage = JSON.stringify({
+    blackoutDates: { 3: [23, 24, 25, 26, 27, 28] },
+    maxGuestCount: 4,
+    experienceShown: false,
+    experience: '4b8c8f13-d2bd-435d-ac000977',
+  });
+
+  describe('#directMessages', () => {
+    it('should poll & read messages from the SQS', () => {
+    });
+    it('should differentiate messages from inventories and client', () => {
+    });
+    it('should ignore duplicate SQS messages', () => {
     });
   });
 });

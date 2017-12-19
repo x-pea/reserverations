@@ -1,4 +1,7 @@
 import { fake, random } from 'faker/locale/en';
+import { influx } from '../databases/reservations'
+import { transSend } from '../server/worker';
+import Promise from 'bluebird';
 
 const randomRangeNumber = (n1, n2) => {
   return random.number({ min: n1, max: n2 });
@@ -41,5 +44,19 @@ const createInventoryInput = (type) => {
   entry.blackoutDates[randomRangeNumber(1, 12)] = randomDateRange();
   return entry;
 };
+
+// (function () {
+//   const promises = [];
+//   for (let j = 0; j < 1000; j++) {
+//     const storage = [];
+//     for (let i = 0; i < 10; i++) {
+//       storage.push(createClientInput(hostOrExp()));
+//     }
+//     promises.push(transSend(storage));
+//   }
+//   Promise.all(promises)
+//     .then(() => console.log('success!'))
+//     .catch(err => console.error(err));
+// })();
 
 export { createClientInput, createInventoryInput, hostOrExp };

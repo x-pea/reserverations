@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Service that will receive and store airbnb rentals",
   "scripts": {
+    "data": "babel-node -- data-generator/data-gen.js",
     "start": "nodemon --exec babel-node -- server/index.js",
     "test": "mocha -R spec --compilers js:babel-register test/components.js"
   },
