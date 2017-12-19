@@ -37,6 +37,7 @@ const parseReservation = (reservation) => {
       fields: {
         dates: JSON.stringify(reservation.dates),
         guestCount: reservation.guestCount,
+        count: 1,
       },
     };
   }
@@ -50,10 +51,12 @@ const parseReservation = (reservation) => {
       fields: {
         dates: JSON.stringify(reservation.dates),
         guestCount: reservation.guestCount,
+        count: 1,
       },
     };
   }
 };
+
 
 // Transposes data and sends it to the database
 const saveReservation = (reservations) => {

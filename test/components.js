@@ -9,7 +9,7 @@ import { config } from 'dotenv';
 
 config();
 
-describe('SQS', () => {
+xdescribe('SQS', () => {
   const testURL = process.env.TEST_SQS_QUEUE_URL;
   const qName = 'TEST';
   const testMessage = JSON.stringify({ test: 'object' });
@@ -200,6 +200,7 @@ xdescribe('Mass data generation into influxDB', () => {
     fields: {
       dates: JSON.stringify({ 7: [8, 9, 10] }),
       guestCount: 1,
+      count: 1,
     },
   };
 
@@ -212,6 +213,7 @@ xdescribe('Mass data generation into influxDB', () => {
     fields: {
       dates: JSON.stringify({ 3: [23, 24, 25, 26, 27, 28] }),
       guestCount: 3,
+      count: 1,
     },
   };
   const actualRentalOutput = parseReservation(rentalInput);
@@ -262,7 +264,7 @@ xdescribe('Mass data generation into influxDB', () => {
   });
 });
 
-describe('serviceWorker', () => {
+xdescribe('serviceWorker', () => {
   const clientMessage = JSON.stringify({
     dates: { 7: [8, 9, 10] },
     userID: 'f1808995-ccc-bacc-a2092af9796a',
