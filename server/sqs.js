@@ -11,10 +11,10 @@ AWS.config.update({
 });
 
 const sqs = new AWS.SQS();
-sqs.createQueue = Promise.promisify(sqs.createQueue);
-sqs.receiveMessage = Promise.promisify(sqs.receiveMessage);
 sqs.deleteMessage = Promise.promisify(sqs.deleteMessage);
 sqs.sendMessage = Promise.promisify(sqs.sendMessage);
+sqs.createQueue = Promise.promisify(sqs.createQueue);
+sqs.receiveMessage = Promise.promisify(sqs.receiveMessage);
 
 const createQ = (name) => {
   const params = {

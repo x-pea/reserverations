@@ -1,6 +1,6 @@
 import { fake, random } from 'faker/locale/en';
 import { influx } from '../databases/reservations'
-import { transSend } from '../server/worker';
+import { transSend } from '../server/clientWorker';
 import Promise from 'bluebird';
 
 const randomRangeNumber = (n1, n2) => {

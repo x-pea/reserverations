@@ -30,6 +30,7 @@
     "influx": "^5.0.0-alpha.4",
     "kairosdb": "0.0.3",
     "mocha": "^4.0.1",
+    "node": "^9.3.0",
     "nodemon": "^1.12.5",
     "sqs-consumer": "^3.8.0"
   },

@@ -1,14 +1,17 @@
 import assert from 'assert';
 import { expect } from 'chai';
 import Promise from 'bluebird';
+import { addAvailability } from '../databases/availability';
 import { createQ, readMessage, deleteMessage, sendMessage, deleteQ } from '../server/sqs';
+import Consumer from 'sqs-consumer';
 import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
 import { writePoints, createDatabase, influx } from '../databases/reservations';
-import { parseReservation, saveReservation } from '../server/worker';
+import { parseReservation, saveReservation } from '../server/clientWorker';
 import { config } from 'dotenv';
 
 config();
 
+// No longer necessary with sqs-consumer package
 xdescribe('SQS', () => {
   const testURL = process.env.TEST_SQS_QUEUE_URL;
   const qName = 'TEST';
@@ -65,6 +68,50 @@ xdescribe('SQS', () => {
         .catch(err => console.error(err));
     });
   });
+});
+
+describe('SQS-consumer', () => {
+  const testURL = process.env.TEST_SQS_QUEUE_URL;
+  const logs = [];
+
+  describe('#consumer', () => {
+    const sqsConsumer = Consumer.create({
+      queueUrl: testURL,
+      handleMessage: (message, done) => {
+        logs.push(message);
+        done();
+      }
+    });
+
+    for (let i = 0; i < 10; i++) {
+      const testMessage = JSON.stringify({ count: i });
+      sendMessage(testMessage, testURL);
+    }
+    sqsConsumer.start();
+
+    it('should read and delete messages from queue', (done) => {
+      sqsConsumer.on('empty', () => {
+        readMessage(testURL)
+          .then(({ Messages }) => {
+            expect(Messages).to.not.exist;
+            sqsConsumer.stop();
+          });
+      })
+      done();
+    });
+  });
+
+
+  describe('read and transpose messages', () => {
+    it('should transpose each message', () => {
+    });
+  });
+
+  describe('', () => {
+    it('should store transposed messages into database', () => {
+    });
+  });
+
 });
 
 xdescribe('Data generator', () => {
