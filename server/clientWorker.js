@@ -1,28 +1,16 @@
 import { writePoints } from '../databases/reservations';
-import { readMessage } from './sqs'
+import { addAvailability } from '../databases/availability';
+import { readMessage, deleteMessage } from './sqs'
 
-const directMessages = () => {
-  const idCache = {};
-  readMessage(process.env.SQS_QUEUE_URL)
-    .then(({ Messages }) => {
-      Messages.forEach(({ MessageId, Body }) => {
-        if (!(MessageId in idCache)) {
-          if (JSON.parse(Body).blackoutDates) {
-            // message from inventories
-            // store new availabilities into availabilities db
-            // delete message
-          } else if (JSON.parse(Body).guestCount) {
-            // message from client
-            // query availabilities database for availability confirmation
-            // send response to client
-            // store new reservation into reservations database
-            // delete message
-          }
-          idCache[MessageId] = MessageId;
-        }
-      });
-    });
-};
+
+const confirmAvailability = () => {
+  // load balancer worker:
+  // message from client
+  // query availabilities database for availability confirmation
+  // send response to client
+  // store new reservation into reservations database
+  // delete message
+}
 
 // reservation handlers
 const parseReservation = (reservation) => {
