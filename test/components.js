@@ -1,25 +1,20 @@
 import assert from 'assert';
-import { should, expect } from 'chai';
-import {
-  createQ,
-  readMessage,
-  deleteMessage,
-  sendMessage
-} from '../server/sqs';
-import {
-  createClientInput,
-  createInventoryInput
-} from '../data-generator/data-gen';
+import { expect } from 'chai';
+import Promise from 'bluebird';
+import { createQ, readMessage, deleteMessage, sendMessage, deleteQ } from '../server/sqs';
+import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
+import { writePoints, createDatabase, influx } from '../databases/reservations';
+import { transposeInput, transSend } from '../server/worker';
 import { config } from 'dotenv';
 
 config();
 
-describe('SQS', () => {
+xdescribe('SQS', () => {
   const testURL = process.env.TEST_SQS_QUEUE_URL;
   const qName = 'TEST';
   const testMessage = 'this is a test';
 
-  describe('Create queue', () => {
+  describe('#createQueue', () => {
     it('should create a queue', (done) => {
       createQ(qName)
         .then((results) => {
@@ -35,7 +30,7 @@ describe('SQS', () => {
     })
   });
 
-  describe('Send message to queue', () => {
+  describe('#sendMessage', () => {
     it('should send a message to designated queue', (done) => {
       sendMessage(testMessage, testURL)
         .then((res) => {
@@ -47,7 +42,7 @@ describe('SQS', () => {
     });
   });
 
-  describe('Read & delete messages in queue', () => {
+  describe('#readMessage', () => {
     it('should poll messages from queue', (done) => {
       readMessage(testURL)
         .then((res) => {
@@ -63,14 +58,16 @@ describe('SQS', () => {
         .then((res) => {
           expect(res.ResponseMetadata).to.be.an('object');
           expect(res.Messages).to.not.exist;
-        });
-      done();
+        })
+        .then(() => deleteQ(testURL))
+        .then(() => done())
+        .catch(err => console.error(err));
     });
   });
 });
 
-describe('Data generator', () => {
-  describe('createClientInput should generate rental and experience data', () => {
+xdescribe('Data generator', () => {
+  describe('#createClientInput', () => {
     const rentalReservation = createClientInput('rental');
     const experienceReservation = createClientInput('experience');
 
@@ -92,7 +89,7 @@ describe('Data generator', () => {
     });
   });
 
-  describe('createInventoryInput should generate rental and experience data', () => {
+  describe('#createInventoryInput', () => {
     const rentalEntry = createInventoryInput('rental');
     const experienceEntry = createInventoryInput('experience');
 
@@ -108,6 +105,158 @@ describe('Data generator', () => {
       expect(experienceEntry.blackoutDates).to.be.an('object');
       expect(experienceEntry.maxGuestCount).to.be.a('number');
       expect(experienceEntry).to.have.property('experience');
+    });
+  });
+});
+
+xdescribe('InfluxDB', () => {
+  const dbName = 'reservations';
+
+  describe('#createDatabase', () => {
+    it('it should create a database', (done) => {
+      createDatabase(dbName)
+        .then(() => influx.getDatabaseNames())
+        .then(names => expect(names.includes(dbName)).to.be.true)
+        .catch(err => console.error(err));
+      done();
+    });
+  });
+
+  describe('#writePoints', () => {
+    const entries = [
+      {
+        measurement: 'home',
+        tags: {
+          experienceShown: true,
+          userID: 'f1808995-ccc-bacc-a2092af9796a',
+          rental: '4b8c8f13-d2bd-435d-ac000977',
+        },
+        fields: {
+          dates: JSON.stringify({ 7: [8, 9, 10] }),
+          guestCount: 1,
+        },
+      },
+      {
+        measurement: 'experience',
+        tags: {
+          userID: 'c62fcb9-4aef-b071-13c404d865ed',
+          rental: 'bfbb2c8-4240-424a-b62e3dde',
+        },
+        fields: {
+          dates: JSON.stringify({ 3: [1, 2, 3] }),
+          guestCount: 3,
+        },
+      },
+    ];
+
+    it('should write points into the database', (done) => {
+      writePoints(entries, dbName)
+        .then(() => influx.query(`select * from home where experienceShown='true'`))
+        .then(rows => rows.forEach((row) => {
+          expect(row).to.be.an('object');
+          expect(row.experienceShown).to.equal('true');
+          expect(row).to.have.property('userID');
+          expect(row).to.have.property('rental');
+          expect(row).to.have.property('dates');
+          expect(row).to.have.property('guestCount');
+          expect(row).to.have.property('time');
+        }))
+        .catch(err => console.error(err))
+      done();
+    });
+  });
+});
+
+describe('Mass data generation into influxDB', () => {
+  const dbName = 'reservations';
+
+  beforeEach(() => {
+    influx.dropMeasurement('home', dbName);
+    influx.dropMeasurement('experience', dbName);
+  });
+
+  const rentalInput = {
+    dates: { 7: [8, 9, 10] },
+    userID: 'f1808995-ccc-bacc-a2092af9796a',
+    guestCount: 1,
+    experienceShown: false,
+    rental: '4b8c8f13-d2bd-435d-ac000977',
+  };
+  const experienceInput = {
+    dates: { 3: [23, 24, 25, 26, 27, 28] },
+    userID: 'c62fcb9-4aef-b071-13c404d865ed',
+    guestCount: 3,
+    experience: 'bfbb2c8-4240-424a-b62e3dde',
+  };
+
+  const expectedRentalOutput = {
+    measurement: 'home',
+    tags: {
+      experienceShown: false,
+      userID: 'f1808995-ccc-bacc-a2092af9796a',
+      rental: '4b8c8f13-d2bd-435d-ac000977',
+    },
+    fields: {
+      dates: JSON.stringify({ 7: [8, 9, 10] }),
+      guestCount: 1,
+    },
+  };
+
+  const expectedExperienceOutput = {
+    measurement: 'experience',
+    tags: {
+      userID: 'c62fcb9-4aef-b071-13c404d865ed',
+      experience: 'bfbb2c8-4240-424a-b62e3dde',
+    },
+    fields: {
+      dates: JSON.stringify({ 3: [23, 24, 25, 26, 27, 28] }),
+      guestCount: 3,
+    },
+  };
+  const actualRentalOutput = transposeInput(rentalInput);
+  const actualExperienceOutput = transposeInput(experienceInput);
+
+  xdescribe('#transposeInput', () => {
+    it('should tranpose rental data for storage in influxDB', () => {
+      expect(actualRentalOutput).to.deep.equal(expectedRentalOutput);
+    });
+    it('should tranpose experience data for storage in influxDB', () => {
+      expect(actualExperienceOutput).to.deep.equal(expectedExperienceOutput);
+    });
+  });
+
+  xdescribe('#transSend', () => {
+    it('should transpose a list of reservation entries and save them to influxDB', (done) => {
+      transSend([rentalInput, experienceInput])
+        .then(() => influx.query(`select * from home where experienceShown='false'`))
+        .then((rows) => {
+          rows.forEach((row) => {
+            expect(row).to.have.property('userID');
+            expect(row).to.have.property('rental');
+            expect(row).to.have.property('dates');
+            expect(row).to.have.property('guestCount');
+            expect(row).to.have.property('time');
+          });
+        });
+      done();
+    });
+  });
+
+  describe('#dataGenerator --> influxDB', () => {
+    it('should generate 1000 sets of 10 random reservation entries', (done) => {
+      const promises = [];
+      for (let j = 0; j < 1000; j++) {
+        const storage = [];
+        // test SQS message polling limit
+        for (let i = 0; i < 10; i++) {
+          storage.push(createClientInput(hostOrExp()));
+        }
+        promises.push(transSend(storage));
+      }
+      Promise.all(promises)
+        .then(() => influx.query('select * from home, experience'))
+        .then(rows => expect(rows.length).to.equal(10000))
+        .then(() => done());
     });
   });
 });

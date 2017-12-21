@@ -57,3 +57,6 @@ exports.sendMessage = (message, queueUrl) => {
   };
   return sqs.sendMessage(params);
 };
+
+// only used during testing
+exports.deleteQ = queueUrl => sqs.deleteQueue({ QueueUrl: queueUrl });
