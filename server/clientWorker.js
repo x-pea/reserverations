@@ -1,6 +1,18 @@
 import { writePoints } from '../databases/reservations';
+import { addAvailability } from '../databases/availabilities';
+import { readMessage, deleteMessage } from './sqs'
 
-const transposeInput = (reservation) => {
+const confirmAvailability = () => {
+  // load balancer worker:
+  // message from client
+  // query availabilities database for availability confirmation
+  // send response to client
+  // store new reservation into reservations database
+  // delete message
+}
+
+// reservation handlers
+const parseReservation = (reservation) => {
   if ('rental' in reservation) {
     return {
       measurement: 'home',
@@ -12,6 +24,7 @@ const transposeInput = (reservation) => {
       fields: {
         dates: JSON.stringify(reservation.dates),
         guestCount: reservation.guestCount,
+        count: 1,
       },
     };
   }
@@ -25,18 +38,20 @@ const transposeInput = (reservation) => {
       fields: {
         dates: JSON.stringify(reservation.dates),
         guestCount: reservation.guestCount,
+        count: 1,
       },
     };
   }
 };
 
+
 // Transposes data and sends it to the database
-const transSend = (reservations) => {
+const saveReservation = (reservations) => {
   const reservationEntries = reservations.map((reservation) => {
-    return transposeInput(reservation);
+    return parseReservation(reservation);
   });
   return writePoints(reservationEntries, 'reservations');
 };
 
 // Exports for testing
-export { transposeInput, transSend };
+export { parseReservation, saveReservation };

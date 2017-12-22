@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Service that will receive and store airbnb rentals",
   "scripts": {
+    "data": "babel-node -- data-generator/data-gen.js",
     "start": "nodemon --exec babel-node -- server/index.js",
     "test": "mocha -R spec --compilers js:babel-register test/components.js"
   },
@@ -22,6 +23,7 @@
     "babel-preset-airbnb": "^2.4.0",
     "babel-preset-env": "^1.6.1",
     "bluebird": "^3.5.1",
+    "cassandra-driver": "^3.3.0",
     "chai": "^4.1.2",
     "dotenv": "^4.0.0",
     "express": "^4.16.2",
@@ -29,7 +31,9 @@
     "influx": "^5.0.0-alpha.4",
     "kairosdb": "0.0.3",
     "mocha": "^4.0.1",
-    "nodemon": "^1.12.5"
+    "node": "^9.3.0",
+    "nodemon": "^1.12.5",
+    "sqs-consumer": "^3.8.0"
   },
   "babel": {
     "presets": [

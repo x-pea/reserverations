@@ -11,12 +11,12 @@ AWS.config.update({
 });
 
 const sqs = new AWS.SQS();
-sqs.createQueue = Promise.promisify(sqs.createQueue);
-sqs.receiveMessage = Promise.promisify(sqs.receiveMessage);
 sqs.deleteMessage = Promise.promisify(sqs.deleteMessage);
 sqs.sendMessage = Promise.promisify(sqs.sendMessage);
+sqs.createQueue = Promise.promisify(sqs.createQueue);
+sqs.receiveMessage = Promise.promisify(sqs.receiveMessage);
 
-exports.createQ = (name) => {
+const createQ = (name) => {
   const params = {
     QueueName: name,
     Attributes: {
@@ -28,7 +28,7 @@ exports.createQ = (name) => {
   return sqs.createQueue(params);
 };
 
-exports.readMessage = (queueUrl) => {
+const readMessage = (queueUrl) => {
   const params = {
     AttributeNames: ['SentTimestamp'],
     MaxNumberOfMessages: 10,
@@ -40,7 +40,7 @@ exports.readMessage = (queueUrl) => {
   return sqs.receiveMessage(params);
 };
 
-exports.deleteMessage = (data, queueUrl) => {
+const deleteMessage = (data, queueUrl) => {
   const deleteParams = {
     QueueUrl: queueUrl,
     ReceiptHandle: data.Messages[0].ReceiptHandle,
@@ -48,7 +48,7 @@ exports.deleteMessage = (data, queueUrl) => {
   return sqs.deleteMessage(deleteParams);
 };
 
-exports.sendMessage = (message, queueUrl) => {
+const sendMessage = (message, queueUrl) => {
   const params = {
     DelaySeconds: 10,
     MessageAttributes: {},
@@ -59,4 +59,6 @@ exports.sendMessage = (message, queueUrl) => {
 };
 
 // only used during testing
-exports.deleteQ = queueUrl => sqs.deleteQueue({ QueueUrl: queueUrl });
+const deleteQ = queueUrl => sqs.deleteQueue({ QueueUrl: queueUrl });
+
+export { createQ, readMessage, deleteMessage, sendMessage, deleteQ }
