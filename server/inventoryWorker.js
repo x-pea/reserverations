@@ -16,7 +16,5 @@ const retrieveAvailability = () => {
   sqsConsumer.start();
 };
 
-
-sqsConsumer.on('error', (err) => {
-  console.log(err.message);
-});
+const translateDates = (message) => {
+};

@@ -1,7 +1,6 @@
 import { writePoints } from '../databases/reservations';
-import { addAvailability } from '../databases/availability';
+import { addAvailability } from '../databases/availabilities';
 import { readMessage, deleteMessage } from './sqs'
-
 
 const confirmAvailability = () => {
   // load balancer worker:

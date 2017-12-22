@@ -1,10 +1,10 @@
 import assert from 'assert';
 import { expect } from 'chai';
 import Promise from 'bluebird';
-import { addAvailability } from '../databases/availability';
 import { createQ, readMessage, deleteMessage, sendMessage, deleteQ } from '../server/sqs';
 import Consumer from 'sqs-consumer';
 import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
+import { createKeyspace, showKeyspaces, dropKeyspace } from '../databases/availabilities';
 import { writePoints, createDatabase, influx } from '../databases/reservations';
 import { parseReservation, saveReservation } from '../server/clientWorker';
 import { config } from 'dotenv';
@@ -72,13 +72,11 @@ xdescribe('SQS', () => {
 
 describe('SQS-consumer', () => {
   const testURL = process.env.TEST_SQS_QUEUE_URL;
-  const logs = [];
 
   describe('#consumer', () => {
     const sqsConsumer = Consumer.create({
       queueUrl: testURL,
       handleMessage: (message, done) => {
-        logs.push(message);
         done();
       }
     });
@@ -100,7 +98,6 @@ describe('SQS-consumer', () => {
       done();
     });
   });
-
 
   describe('read and transpose messages', () => {
     it('should transpose each message', () => {
@@ -311,6 +308,26 @@ xdescribe('Mass data generation into influxDB', () => {
   });
 });
 
+describe('Scylla', () => {
+  const keyspace = 'availabilities';
+  describe('#createKeyspace', () => {
+    it('should create a new keyspace', () => {
+      createKeyspace(keyspace)
+        .then(res => expect(res).to.be.empty)
+        .catch(err => console.error('Error creating namespace', err));
+    });
+
+    after(() => {
+      dropKeyspace(keyspace)
+        .then(res => console.log(res))
+        .catch(err => console.error('Error dropping keyspace', err));
+    })
+  });
+  describe('#queryDatabase', () => {});
+  describe('#addAvailability', () => {});
+  describe('#updateAvailability', () => {});
+});
+
 xdescribe('serviceWorker', () => {
   const clientMessage = JSON.stringify({
     dates: { 7: [8, 9, 10] },
@@ -324,14 +341,5 @@ xdescribe('serviceWorker', () => {
     maxGuestCount: 4,
     experienceShown: false,
     experience: '4b8c8f13-d2bd-435d-ac000977',
-  });
-
-  describe('#directMessages', () => {
-    it('should poll & read messages from the SQS', () => {
-    });
-    it('should differentiate messages from inventories and client', () => {
-    });
-    it('should ignore duplicate SQS messages', () => {
-    });
   });
 });
