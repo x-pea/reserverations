@@ -1,24 +1,12 @@
-import cassandra from 'cassandra-driver';
 import Promise from 'bluebird';
 import { config } from 'dotenv';
 
 config();
 
-const client = new cassandra.Client({ contactPoints: [process.env.SCYLLA] });
-client.execute = Promise.promisify(client.execute);
+const addAvailability = (id, dates, maxGuestCount) => {}
 
-const createKeyspace = (keyspace) => {
-  return client.execute(`CREATE KEYSPACE ${keyspace} WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 3}`)
-};
+const queryDatabase = () => {}
 
-const dropKeyspace = (keyspace) => {
-  return client.execute(`DROP KEYSPACE ${keyspace}`)
-};
+const updateAvailability = () => {}
 
-// const queryDatabase = () => {}
-//
-// const addAvailability = () => {}
-//
-// const updateAvailability = () => {}
-
-export { createKeyspace, showKeyspaces, dropKeyspace };
+export { addAvailability, queryDatabase, updateAvailability };

@@ -4,7 +4,7 @@ import Promise from 'bluebird';
 import { createQ, readMessage, deleteMessage, sendMessage, deleteQ } from '../server/sqs';
 import Consumer from 'sqs-consumer';
 import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
-import { createKeyspace, showKeyspaces, dropKeyspace } from '../databases/availabilities';
+import { addAvailability } from '../databases/availabilities';
 import { writePoints, createDatabase, influx } from '../databases/reservations';
 import { parseReservation, saveReservation } from '../server/clientWorker';
 import { config } from 'dotenv';
@@ -23,13 +23,15 @@ xdescribe('SQS', () => {
         .then((results) => {
           expect(results).to.be.an('object');
           expect(results).to.have.property('ResponseMetadata');
-        });
-      done();
+        })
+        .then(() => done())
+        .catch(err => console.error('Error creating a queue', err));
     });
     it('should create a queue with the provided name', (done) => {
       createQ(qName)
         .then(results => expect(results.QueueUrl).to.include(qName))
-      done();
+        .then(() => done())
+        .catch(err => console.error('Error creating a queue'));
     })
   });
 
@@ -41,7 +43,8 @@ xdescribe('SQS', () => {
           expect(MessageId).to.be.a('string');
           expect(MD5OfMessageBody).to.be.a('string');
         })
-      done();
+        .then(() => done())
+        .catch(err => console.error('Error sending message to queue', err))
     });
   });
 
@@ -52,8 +55,9 @@ xdescribe('SQS', () => {
           expect(Messages).to.have.lengthOf.above(0);
           expect(Messages[0].Body).to.include(testMessage);
           expect(Messages[0].MessageId).to.be.a('string');
-        });
-      done();
+        })
+        .then(() => done())
+        .catch(err => console.error('Error reading message from queue'))
     });
 
     it('should delete read messages in queue', (done) => {
@@ -65,12 +69,12 @@ xdescribe('SQS', () => {
         })
         .then(() => deleteQ(testURL))
         .then(() => done())
-        .catch(err => console.error(err));
+        .catch(err => console.error('Error creating deleting messages from queue', err));
     });
   });
 });
 
-describe('SQS-consumer', () => {
+xdescribe('SQS-consumer', () => {
   const testURL = process.env.TEST_SQS_QUEUE_URL;
 
   describe('#consumer', () => {
@@ -93,9 +97,10 @@ describe('SQS-consumer', () => {
           .then(({ Messages }) => {
             expect(Messages).to.not.exist;
             sqsConsumer.stop();
-          });
+          })
+          .then(() => done())
+          .catch(err => new Error('Error reading and deleting messages from queue'))
       })
-      done();
     });
   });
 
@@ -162,8 +167,8 @@ xdescribe('InfluxDB', () => {
       createDatabase(dbName)
         .then(() => influx.getDatabaseNames())
         .then(names => expect(names.includes(dbName)).to.be.true)
+        .then(() => done())
         .catch(err => console.error(err));
-      done();
     });
   });
 
@@ -206,8 +211,8 @@ xdescribe('InfluxDB', () => {
           expect(row).to.have.property('guestCount');
           expect(row).to.have.property('time');
         }))
+        .then(() => done())
         .catch(err => console.error(err))
-      done();
     });
   });
 });
@@ -284,8 +289,9 @@ xdescribe('Mass data generation into influxDB', () => {
             expect(row).to.have.property('guestCount');
             expect(row).to.have.property('time');
           });
-        });
-      done();
+        })
+        .then(() => done())
+        .catch(err => console.error('Error saving reservations'))
     });
   });
 
@@ -308,23 +314,9 @@ xdescribe('Mass data generation into influxDB', () => {
   });
 });
 
-describe('Scylla', () => {
-  const keyspace = 'availabilities';
-  describe('#createKeyspace', () => {
-    it('should create a new keyspace', () => {
-      createKeyspace(keyspace)
-        .then(res => expect(res).to.be.empty)
-        .catch(err => console.error('Error creating namespace', err));
-    });
-
-    after(() => {
-      dropKeyspace(keyspace)
-        .then(res => console.log(res))
-        .catch(err => console.error('Error dropping keyspace', err));
-    })
-  });
-  describe('#queryDatabase', () => {});
+describe('MongoDb', () => {
   describe('#addAvailability', () => {});
+  describe('#queryDatabase', () => {});
   describe('#updateAvailability', () => {});
 });
 
