@@ -4,7 +4,7 @@ import Promise from 'bluebird';
 import { createQ, readMessage, deleteMessage, sendMessage, deleteQ } from '../server/sqs';
 import Consumer from 'sqs-consumer';
 import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
-import { addAvailability } from '../databases/availabilities';
+import { Home, Experience, addHome, addExp, queryHome, queryExperience, updateAvailability } from '../databases/availabilities';
 import { writePoints, createDatabase, influx } from '../databases/reservations';
 import { parseReservation, saveReservation } from '../server/clientWorker';
 import { config } from 'dotenv';
@@ -291,7 +291,7 @@ xdescribe('Mass data generation into influxDB', () => {
           });
         })
         .then(() => done())
-        .catch(err => console.error('Error saving reservations'))
+        .catch(err => console.error('Error saving reservations', err));
     });
   });
 
@@ -315,9 +315,92 @@ xdescribe('Mass data generation into influxDB', () => {
 });
 
 describe('MongoDb', () => {
-  describe('#addAvailability', () => {});
-  describe('#queryDatabase', () => {});
-  describe('#updateAvailability', () => {});
+  const homeEntry = {
+    dates: { 1: [null, 5, 5, 2, 1], 2: [null, 3] },
+    maxGuestCount: 7,
+    rental: 12431424
+  };
+
+  const expEntry = {
+    dates: { 1: [null, 5, 5, 2, 1], 2: [null, 3] },
+    maxGuestCount: 7,
+    experience: 12431424
+  };
+
+  const sampleId = 12431424;
+
+  describe('#addAvailability', () => {
+    before((done) => {
+      Experience.findOneAndRemove({ experience: sampleId })
+        .then(() => Home.findOneAndRemove({ rental: sampleId }))
+        .then(() => done())
+    });
+
+    it('should add a new home listing', (done) => {
+      addHome(homeEntry)
+        .then((res) => {
+          expect(res.dates).to.be.an('object');
+          expect(res).to.have.property('maxGuestCount');
+          expect(res).to.have.property('rental');
+        })
+        .then(() => done())
+        .catch(err => console.error('Error adding entry', err));
+    });
+
+    it('should add a new experience listing', (done) => {
+      addExp(expEntry)
+        .then((res) => {
+          expect(res.dates).to.be.an('object');
+          expect(res).to.have.property('maxGuestCount');
+          expect(res).to.have.property('experience');
+        })
+        .then(() => done())
+        .catch(err => console.error('Error adding entry', err));
+    });
+  });
+
+  describe('#queryDatabase', () => {
+    it('should find home listing by id', (done) => {
+      queryHome(sampleId)
+        .then((res) => {
+          expect(res.dates).to.deep.equal(homeEntry.dates);
+          expect(res.maxGuestCount).to.equal(homeEntry.maxGuestCount);
+          expect(res.rental).to.equal(homeEntry.rental);
+        })
+        .then(() => done())
+        .catch(err => console.error('Error querying collection', err));
+    })
+
+    it('should find experience listing by id', (done) => {
+      queryExperience(sampleId)
+        .then((res) => {
+          expect(res.dates).to.deep.equal(expEntry.dates);
+          expect(res.maxGuestCount).to.equal(expEntry.maxGuestCount);
+          expect(res.rental).to.equal(expEntry.rental);
+        })
+        .then(() => done())
+        .catch(err => console.error('Error querying collection', err));
+    })
+  });
+  describe('#updateAvailability', () => {
+    it('should update the home listing availability of date', (done) => {
+      updateAvailability('home', sampleId, 1, 1, 3)
+        .then(res => expect(res.ok).to.equal(1))
+        .then(() => queryHome(sampleId))
+        .then(entry => expect(entry.dates['1'][1]).to.equal(3))
+        .then(() => done())
+        .catch(err => console.error('Error updating availabiility', err));
+    });
+
+    it('should update the experience listing availability of date', (done) => {
+      updateAvailability('exp', sampleId, 1, 1, 3)
+        .then(res => expect(res.ok).to.equal(1))
+        .then(() => queryExperience(sampleId))
+        .then(entry => expect(entry.dates['1'][1]).to.equal(3))
+        .then(() => done())
+        .catch(err => console.error('Error updating availabiility', err));
+    });
+  });
 });
 
 xdescribe('serviceWorker', () => {
