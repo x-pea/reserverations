@@ -1,20 +1,40 @@
-import { addAvailability } from '../databases/availability';
+import { addAvailability } from '../databases/availabilities';
 import Consumer from 'sqs-consumer';
+
+const translateDates = (blackoutDates) => {
+  const translatedDates = {};
+  for (let month in blackoutDates) {
+    translatedDates[month] = [null];
+    for (let date of blackoutDates[month]) {
+      translatedDates[month][date] = 0;
+    }
+  }
+  return translatedDates;
+};
+
+const transposeMessage = (message) => {
+  const transposedMessage = {
+    maxGuestCount: message.maxGuestCount,
+    dateAvailability: translateDates(message.blackoutDates),
+  };
+  if (message.rental) {
+    transposedMessage.rental = message.rental;
+  }
+  if (message.experience) {
+    transposedMessage.experience = message.experience;
+  }
+  return transposedMessage;
+};
 
 const sqsConsumer = Consumer.create({
   queueUrl: process.env.SQS_QUEUE_URL,
   handleMessage: (message, done) => {
-    // transpose each messages
-    // store new availabilities into db
-    done();
+    const transposedMessage = transposeMessage(JSON.parse(message.Body));
+    addAvailability(transposedMessage)
+      .then(() => done());
   },
 });
 
-const retrieveAvailability = () => {
-// poll messages from inventories
-// check for sqs message duplicates
-  sqsConsumer.start();
-};
+sqsConsumer.start();
 
-const translateDates = (message) => {
-};
+export { translateDates, transposeMessage }

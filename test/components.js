@@ -4,9 +4,10 @@ import Promise from 'bluebird';
 import { createQ, readMessage, deleteMessage, sendMessage, deleteQ } from '../server/sqs';
 import Consumer from 'sqs-consumer';
 import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
-import { Home, Experience, addHome, addExp, queryHome, queryExperience, updateAvailability } from '../databases/availabilities';
+import { Home, Experience, addAvailability, queryHome, queryExperience, updateAvailability } from '../databases/availabilities';
 import { writePoints, createDatabase, influx } from '../databases/reservations';
 import { parseReservation, saveReservation } from '../server/clientWorker';
+import { translateDates, transposeMessage, pollQueue } from '../server/inventoryWorker';
 import { config } from 'dotenv';
 
 config();
@@ -84,12 +85,12 @@ xdescribe('SQS-consumer', () => {
         done();
       }
     });
+    sqsConsumer.start();
 
     for (let i = 0; i < 10; i++) {
       const testMessage = JSON.stringify({ count: i });
       sendMessage(testMessage, testURL);
     }
-    sqsConsumer.start();
 
     it('should read and delete messages from queue', (done) => {
       sqsConsumer.on('empty', () => {
@@ -314,7 +315,7 @@ xdescribe('Mass data generation into influxDB', () => {
   });
 });
 
-describe('MongoDb', () => {
+xdescribe('MongoDb', () => {
   const homeEntry = {
     dates: { 1: [null, 5, 5, 2, 1], 2: [null, 3] },
     maxGuestCount: 7,
@@ -337,7 +338,7 @@ describe('MongoDb', () => {
     });
 
     it('should add a new home listing', (done) => {
-      addHome(homeEntry)
+      addAvailability(homeEntry)
         .then((res) => {
           expect(res.dates).to.be.an('object');
           expect(res).to.have.property('maxGuestCount');
@@ -348,7 +349,7 @@ describe('MongoDb', () => {
     });
 
     it('should add a new experience listing', (done) => {
-      addExp(expEntry)
+      addAvailability(expEntry)
         .then((res) => {
           expect(res.dates).to.be.an('object');
           expect(res).to.have.property('maxGuestCount');
@@ -382,6 +383,7 @@ describe('MongoDb', () => {
         .catch(err => console.error('Error querying collection', err));
     })
   });
+
   describe('#updateAvailability', () => {
     it('should update the home listing availability of date', (done) => {
       updateAvailability('home', sampleId, 1, 1, 3)
@@ -403,18 +405,78 @@ describe('MongoDb', () => {
   });
 });
 
-xdescribe('serviceWorker', () => {
+xdescribe('clientWorker', () => {
   const clientMessage = JSON.stringify({
     dates: { 7: [8, 9, 10] },
-    userID: 'f1808995-ccc-bacc-a2092af9796a',
+    userID: 87756789,
     guestCount: 1,
     experienceShown: false,
-    rental: '4b8c8f13-d2bd-435d-ac000977',
+    rental: 123024,
   });
   const inventoryMessage = JSON.stringify({
     blackoutDates: { 3: [23, 24, 25, 26, 27, 28] },
     maxGuestCount: 4,
     experienceShown: false,
-    experience: '4b8c8f13-d2bd-435d-ac000977',
+    experience: 123024,
+  });
+});
+
+describe('inventoryWorker', () => {
+  const sampleInput1 = {
+    blackoutDates: { 3: [3, 4, 5] },
+    maxGuestCount: 7,
+    rental: 78673467,
+  }
+
+  const sampleInput2 = {
+    blackoutDates: { 1: [2, 3] },
+    maxGuestCount: 3,
+    rental: 4687674,
+  };
+
+  const sampleOutput1 = {
+    dateAvailability: { 3: [null, undefined, undefined, 0, 0, 0] },
+    maxGuestCount: 7,
+    rental: 78673467,
+  };
+
+  const sampleOutput2 = {
+    dateAvailability: { 1: [null, null, 0, 0] },
+    maxGuestCount: 3,
+    rental: 4687674,
+  };
+
+  describe('#translateDates', () => {
+    it('should translate blackout dates to date availabilities', () => {
+      const actualMessage = translateDates(sampleInput1.blackoutDates);
+      expect(actualMessage).to.deep.eql(sampleOutput1.dateAvailability);
+    });
+  });
+
+  describe('#transposeMessage', () => {
+    it('should tranpose sampleInput with a dateAvailability property', () => {
+      const actualMessage = transposeMessage(sampleInput1);
+      expect(actualMessage).to.deep.eql(sampleOutput1);
+    });
+  });
+
+  describe('#pollQueue', () => {
+    before((done) => {
+      const testMessage = JSON.stringify(sampleInput1);
+      sendMessage(testMessage, process.env.SQS_QUEUE_URL)
+        .then(() => done())
+        .catch(err => console.error('Failed to send test sqs message', err));
+    });
+
+    it('should poll messages from queue and store tranposed messages into database', (done) => {
+      queryHome(4687674)
+        .then((res) => {
+          console.log(res)
+          expect(res.dateAvailability).to.deep.equal(sampleOutput2.dateAvailability);
+          expect(res.maxGuestCount).to.equal(sampleOutput2.maxGuestCount);
+        })
+        .then(() => done())
+        .catch(err => console.error('Error polling & storing messages', err));
+    });
   });
 });
