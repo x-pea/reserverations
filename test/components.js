@@ -6,7 +6,7 @@ import Consumer from 'sqs-consumer';
 import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
 import { Home, Experience, addAvailability, queryHome, queryExperience, updateAvailability } from '../databases/availabilities';
 import { writePoints, createDatabase, influx } from '../databases/reservations';
-import { parseReservation, saveReservation } from '../server/clientWorker';
+import { assignReservationId, parseReservation, saveReservation } from '../server/clientWorker';
 import { translateDates, transposeMessage, pollQueue } from '../server/inventoryWorker';
 import { config } from 'dotenv';
 
@@ -180,7 +180,7 @@ xdescribe('InfluxDB', () => {
         tags: {
           experienceShown: true,
           userID: 'f1808995-ccc-bacc-a2092af9796a',
-          rental: '4b8c8f13-d2bd-435d-ac000977',
+          rental: 8219071282,
         },
         fields: {
           dates: JSON.stringify({ 7: [8, 9, 10] }),
@@ -191,7 +191,7 @@ xdescribe('InfluxDB', () => {
         measurement: 'experience',
         tags: {
           userID: 'c62fcb9-4aef-b071-13c404d865ed',
-          rental: 'bfbb2c8-4240-424a-b62e3dde',
+          rental: 23498032,
         },
         fields: {
           dates: JSON.stringify({ 3: [1, 2, 3] }),
@@ -231,13 +231,13 @@ xdescribe('Mass data generation into influxDB', () => {
     userID: 'f1808995-ccc-bacc-a2092af9796a',
     guestCount: 1,
     experienceShown: false,
-    rental: '4b8c8f13-d2bd-435d-ac000977',
+    rental: 141251424,
   };
   const experienceInput = {
     dates: { 3: [23, 24, 25, 26, 27, 28] },
     userID: 'c62fcb9-4aef-b071-13c404d865ed',
     guestCount: 3,
-    experience: 'bfbb2c8-4240-424a-b62e3dde',
+    experience: 574584646,
   };
 
   const expectedRentalOutput = {
@@ -245,7 +245,7 @@ xdescribe('Mass data generation into influxDB', () => {
     tags: {
       experienceShown: false,
       userID: 'f1808995-ccc-bacc-a2092af9796a',
-      rental: '4b8c8f13-d2bd-435d-ac000977',
+      rental: 141251424,
     },
     fields: {
       dates: JSON.stringify({ 7: [8, 9, 10] }),
@@ -258,7 +258,7 @@ xdescribe('Mass data generation into influxDB', () => {
     measurement: 'experience',
     tags: {
       userID: 'c62fcb9-4aef-b071-13c404d865ed',
-      experience: 'bfbb2c8-4240-424a-b62e3dde',
+      experience: 574584646,
     },
     fields: {
       dates: JSON.stringify({ 3: [23, 24, 25, 26, 27, 28] }),
@@ -317,13 +317,13 @@ xdescribe('Mass data generation into influxDB', () => {
 
 xdescribe('MongoDb', () => {
   const homeEntry = {
-    dates: { 1: [null, 5, 5, 2, 1], 2: [null, 3] },
+    dateAvailability: { 1: [null, 5, 5, 2, 1], 2: [null, 3] },
     maxGuestCount: 7,
     rental: 12431424
   };
 
   const expEntry = {
-    dates: { 1: [null, 5, 5, 2, 1], 2: [null, 3] },
+    dateAvailability: { 1: [null, 5, 5, 2, 1], 2: [null, 3] },
     maxGuestCount: 7,
     experience: 12431424
   };
@@ -340,7 +340,7 @@ xdescribe('MongoDb', () => {
     it('should add a new home listing', (done) => {
       addAvailability(homeEntry)
         .then((res) => {
-          expect(res.dates).to.be.an('object');
+          expect(res.dateAvailability).to.be.an('object');
           expect(res).to.have.property('maxGuestCount');
           expect(res).to.have.property('rental');
         })
@@ -351,7 +351,7 @@ xdescribe('MongoDb', () => {
     it('should add a new experience listing', (done) => {
       addAvailability(expEntry)
         .then((res) => {
-          expect(res.dates).to.be.an('object');
+          expect(res.dateAvailability).to.be.an('object');
           expect(res).to.have.property('maxGuestCount');
           expect(res).to.have.property('experience');
         })
@@ -364,7 +364,7 @@ xdescribe('MongoDb', () => {
     it('should find home listing by id', (done) => {
       queryHome(sampleId)
         .then((res) => {
-          expect(res.dates).to.deep.equal(homeEntry.dates);
+          expect(res.dateAvailability).to.deep.equal(homeEntry.dateAvailability);
           expect(res.maxGuestCount).to.equal(homeEntry.maxGuestCount);
           expect(res.rental).to.equal(homeEntry.rental);
         })
@@ -375,7 +375,7 @@ xdescribe('MongoDb', () => {
     it('should find experience listing by id', (done) => {
       queryExperience(sampleId)
         .then((res) => {
-          expect(res.dates).to.deep.equal(expEntry.dates);
+          expect(res.dateAvailability).to.deep.equal(expEntry.dateAvailability);
           expect(res.maxGuestCount).to.equal(expEntry.maxGuestCount);
           expect(res.rental).to.equal(expEntry.rental);
         })
@@ -389,7 +389,7 @@ xdescribe('MongoDb', () => {
       updateAvailability('home', sampleId, 1, 1, 3)
         .then(res => expect(res.ok).to.equal(1))
         .then(() => queryHome(sampleId))
-        .then(entry => expect(entry.dates['1'][1]).to.equal(3))
+        .then(entry => expect(entry.dateAvailability['1'][1]).to.equal(3))
         .then(() => done())
         .catch(err => console.error('Error updating availabiility', err));
     });
@@ -398,30 +398,39 @@ xdescribe('MongoDb', () => {
       updateAvailability('exp', sampleId, 1, 1, 3)
         .then(res => expect(res.ok).to.equal(1))
         .then(() => queryExperience(sampleId))
-        .then(entry => expect(entry.dates['1'][1]).to.equal(3))
+        .then(entry => expect(entry.dateAvailability['1'][1]).to.equal(3))
         .then(() => done())
         .catch(err => console.error('Error updating availabiility', err));
     });
   });
 });
 
-xdescribe('clientWorker', () => {
-  const clientMessage = JSON.stringify({
+describe('clientWorker', () => {
+  const clientMessage = {
     dates: { 7: [8, 9, 10] },
-    userID: 87756789,
+    userID: 'fasdjfk234',
     guestCount: 1,
     experienceShown: false,
     rental: 123024,
-  });
-  const inventoryMessage = JSON.stringify({
+  };
+
+  const inventoryMessage = {
     blackoutDates: { 3: [23, 24, 25, 26, 27, 28] },
     maxGuestCount: 4,
     experienceShown: false,
     experience: 123024,
-  });
+  };
+
+  describe('#assignReservationId', () => {
+    it('should assign a reservationId utilizing userId and listingId', () => {
+      const reservationId = assignReservationId(clientMessage.userID, clientMessage.rental);
+      expect(reservationId.slice(0, 3)).to.equal(clientMessage.userID.slice(0, 3));
+      expect(reservationId.slice(3)).to.equal(String(clientMessage.rental).slice(0, 5));
+    });
+  })
 });
 
-describe('inventoryWorker', () => {
+xdescribe('inventoryWorker', () => {
   const sampleInput1 = {
     blackoutDates: { 3: [3, 4, 5] },
     maxGuestCount: 7,
@@ -471,7 +480,6 @@ describe('inventoryWorker', () => {
     it('should poll messages from queue and store tranposed messages into database', (done) => {
       queryHome(4687674)
         .then((res) => {
-          console.log(res)
           expect(res.dateAvailability).to.deep.equal(sampleOutput2.dateAvailability);
           expect(res.maxGuestCount).to.equal(sampleOutput2.maxGuestCount);
         })

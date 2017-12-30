@@ -1,17 +1,50 @@
 import { writePoints } from '../databases/reservations';
-import { addAvailability } from '../databases/availabilities';
-import { readMessage, deleteMessage } from './sqs'
+import { queryHome, queryExperience, updateAvailability } from '../databases/availabilities';
 
-const confirmAvailability = () => {
-  // load balancer worker:
-  // message from client
-  // query availabilities database for availability confirmation
-  // send response to client
-  // store new reservation into reservations database
-  // delete message
+// load balancer worker:
+// message from client
+// query availabilities database for availability confirmation
+// send response to client
+// store new reservation into reservations database
+// delete message
+
+const assignReservationId = (userId, listingId) => {
+  console.log(userId, listingId)
+  return `${userId.slice(0, 3)}${String(listingId).slice(0, 5)}`
 }
 
-// reservation handlers
+// const isAvailable = (guestCount, dates, availability) => {
+//   for (let month in dates) {
+//     for (let date of dates[month]) {
+//       if (availability[month][date] - guestCount < 0) {
+//         return false;
+//       }
+//     }
+//   }
+//   return true;
+// };
+//
+// const sendConfirmation = (availability) => {
+//   if (availability) {
+//     return {
+//       availability,
+//       reservationId: assignReservationId()
+//     }
+//   }
+// }
+//
+// const confirmAvailability = (reservation) => {
+//   if (reservation.rental) {
+//     queryHome(reservation.rental)
+//       .then(({ dateAvailability }) => {
+//         if (isAvailable(reservation.guestCount, reservation.dates, dateAvailability)) {
+//           //
+//         }
+//       })
+//   }
+//   if (reservation.experience) {}
+// }
+
 const parseReservation = (reservation) => {
   if ('rental' in reservation) {
     return {
@@ -28,6 +61,7 @@ const parseReservation = (reservation) => {
       },
     };
   }
+
   if ('experience' in reservation) {
     return {
       measurement: 'experience',
@@ -44,7 +78,6 @@ const parseReservation = (reservation) => {
   }
 };
 
-
 // Transposes data and sends it to the database
 const saveReservation = (reservations) => {
   const reservationEntries = reservations.map((reservation) => {
@@ -54,4 +87,4 @@ const saveReservation = (reservations) => {
 };
 
 // Exports for testing
-export { parseReservation, saveReservation };
+export { assignReservationId, parseReservation, saveReservation };
