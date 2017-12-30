@@ -6,7 +6,7 @@ import Consumer from 'sqs-consumer';
 import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
 import { Home, Experience, addAvailability, queryHome, queryExperience, updateAvailability } from '../databases/availabilities';
 import { writePoints, createDatabase, influx } from '../databases/reservations';
-import { assignReservationId, parseReservation, saveReservation } from '../server/clientWorker';
+import { assignReservationId, checkAvail, parseReservation, saveReservation } from '../server/clientWorker';
 import { translateDates, transposeMessage, pollQueue } from '../server/inventoryWorker';
 import { config } from 'dotenv';
 
@@ -406,28 +406,37 @@ xdescribe('MongoDb', () => {
 });
 
 describe('clientWorker', () => {
-  const clientMessage = {
-    dates: { 7: [8, 9, 10] },
+  const sampleInput = {
+    dates: { 3: [1, 2, 3] },
     userID: 'fasdjfk234',
     guestCount: 1,
     experienceShown: false,
     rental: 123024,
   };
 
-  const inventoryMessage = {
-    blackoutDates: { 3: [23, 24, 25, 26, 27, 28] },
-    maxGuestCount: 4,
-    experienceShown: false,
-    experience: 123024,
-  };
+  const falseAvail = { 3: [null, 0, 3, 3, 0, 0] };
+  const trueAvail = { 3: [null, 4, 4, 3, 2, 1] };
+  const newAvail = { 3: [null, 3, 3, 2, 2, 1] };
 
   describe('#assignReservationId', () => {
     it('should assign a reservationId utilizing userId and listingId', () => {
-      const reservationId = assignReservationId(clientMessage.userID, clientMessage.rental);
-      expect(reservationId.slice(0, 3)).to.equal(clientMessage.userID.slice(0, 3));
-      expect(reservationId.slice(3)).to.equal(String(clientMessage.rental).slice(0, 5));
+      const reservationId = assignReservationId(sampleInput.userID, sampleInput.rental);
+      expect(reservationId.slice(0, 3)).to.equal(sampleInput.userID.slice(0, 3));
+      expect(reservationId.slice(3)).to.equal(String(sampleInput.rental).slice(0, 5));
     });
-  })
+  });
+
+  describe('#checkAvail', () => {
+    it('should return false if listing is not available', () => {
+      const availability = checkAvail(sampleInput.guestCount, sampleInput.dates, falseAvail);
+      expect(availability).to.be.false;
+    });
+    it('should return new availability if listing is available', () => {
+      const availability = checkAvail(sampleInput.guestCount, sampleInput.dates, trueAvail);
+      expect(availability).to.be.an('object');
+      expect(availability).to.eql(newAvail);
+    });
+  });
 });
 
 xdescribe('inventoryWorker', () => {
@@ -435,12 +444,6 @@ xdescribe('inventoryWorker', () => {
     blackoutDates: { 3: [3, 4, 5] },
     maxGuestCount: 7,
     rental: 78673467,
-  }
-
-  const sampleInput2 = {
-    blackoutDates: { 1: [2, 3] },
-    maxGuestCount: 3,
-    rental: 4687674,
   };
 
   const sampleOutput1 = {
@@ -471,7 +474,7 @@ xdescribe('inventoryWorker', () => {
 
   describe('#pollQueue', () => {
     before((done) => {
-      const testMessage = JSON.stringify(sampleInput1);
+      const testMessage = JSON.stringify(sampleOutput2);
       sendMessage(testMessage, process.env.SQS_QUEUE_URL)
         .then(() => done())
         .catch(err => console.error('Failed to send test sqs message', err));

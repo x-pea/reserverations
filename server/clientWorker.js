@@ -8,43 +8,48 @@ import { queryHome, queryExperience, updateAvailability } from '../databases/ava
 // store new reservation into reservations database
 // delete message
 
+// Confirmation availability for reservation
 const assignReservationId = (userId, listingId) => {
-  console.log(userId, listingId)
   return `${userId.slice(0, 3)}${String(listingId).slice(0, 5)}`
+};
+
+const checkAvail = (guestCount, dates, availability) => {
+  const months = Object.keys(dates);
+  let isAvailable = true;
+
+  months.forEach((month) => {
+    dates[month].forEach((date) => {
+      availability[month][date] = availability[month][date] - guestCount;
+      if (availability[month][date] < 0) {
+        isAvailable = false;
+      }
+    });
+  });
+  return isAvailable ? availability : isAvailable;
+};
+
+const sendConfirmation = (availability) => {
+  if (availability instanceof Object) {
+    return {
+      availability: true,
+      reservationId: assignReservationId(),
+    };
+  }
+};
+
+const confirmAvailability = (reservation) => {
+  if (reservation.rental) {
+    queryHome(reservation.rental)
+      .then(({ dateAvailability }) => {
+        if (isAvailable(reservation.guestCount, reservation.dates, dateAvailability)) {
+          //
+        }
+      })
+  }
+  if (reservation.experience) {}
 }
 
-// const isAvailable = (guestCount, dates, availability) => {
-//   for (let month in dates) {
-//     for (let date of dates[month]) {
-//       if (availability[month][date] - guestCount < 0) {
-//         return false;
-//       }
-//     }
-//   }
-//   return true;
-// };
-//
-// const sendConfirmation = (availability) => {
-//   if (availability) {
-//     return {
-//       availability,
-//       reservationId: assignReservationId()
-//     }
-//   }
-// }
-//
-// const confirmAvailability = (reservation) => {
-//   if (reservation.rental) {
-//     queryHome(reservation.rental)
-//       .then(({ dateAvailability }) => {
-//         if (isAvailable(reservation.guestCount, reservation.dates, dateAvailability)) {
-//           //
-//         }
-//       })
-//   }
-//   if (reservation.experience) {}
-// }
-
+// Store Reservation
 const parseReservation = (reservation) => {
   if ('rental' in reservation) {
     return {
@@ -87,4 +92,4 @@ const saveReservation = (reservations) => {
 };
 
 // Exports for testing
-export { assignReservationId, parseReservation, saveReservation };
+export { assignReservationId, checkAvail, parseReservation, saveReservation };
