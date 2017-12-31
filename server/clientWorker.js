@@ -1,30 +1,29 @@
 import { writePoints } from '../databases/reservations';
 import { queryAvailability, updateAvailability } from '../databases/availabilities';
 
-// load balancer worker:
-// message from client
-// query availabilities database for availability confirmation
-// send response to client
-// store new reservation into reservations database
-// delete message
-
 // Confirmation availability for reservation
 const determineType = reservation => reservation.rental ? 'rental' : 'experience';
 const assignReservationId = (userId, listingId) => `${userId.slice(0, 3)}${String(listingId).slice(0, 5)}`;
 
-const checkAvail = (guestCount, dates, availability) => {
+const checkAvail = (guestCount, dates, availability, maxGuestCount) => {
+  const newAvail = {};
   const months = Object.keys(dates);
   let isAvailable = true;
 
   months.forEach((month) => {
+    newAvail[month] = {};
     dates[month].forEach((date) => {
-      availability[month][date] = availability[month][date] - guestCount;
-      if (availability[month][date] < 0) {
+      let dateAvailability = availability[month][date];
+      if (dateAvailability === null) {
+        dateAvailability = maxGuestCount;
+      }
+      newAvail[month][date] = dateAvailability - guestCount;
+      if (newAvail[month][date] < 0) {
         isAvailable = false;
       }
     });
   });
-  return isAvailable ? availability : isAvailable;
+  return isAvailable ? newAvail : isAvailable;
 };
 
 const writeResponse = (availability, userId, listingId) => {
@@ -63,18 +62,31 @@ const saveReservation = (reservations) => {
   return writePoints(reservationEntries, 'reservations');
 };
 
-// const x = (reservation) => {
-//   const type = determineType(reservation);
-//
-//   queryAvailability(reservation[type])
-//   .then(({ dateAvailability }) => {
-//     const avail = checkAvail(reservation.guestCount, reservation.dates, dateAvailability);
-//     const confirmation = writeResponse(avail, reservation.userId, reservation[type]);
-//     // resepond to client with confirmation
-//     // update database with new availability
-//     saveReservation(reservation); // returns promise
-//   });
-// }
+const updateAvailabilities = (type, id, newAvailability) => {
+  const months = Object.keys(newAvailability);
+  months.forEach((month) => {
+    const dates = Object.keys(newAvailability[month]);
+    newAvailability[month][dates].forEach((date) => {
+      updateAvailability(type, id, month, date, newAvailability[month][date]);
+    });
+  });
+};
+
+const confirmAvailability = (reservation) => {
+  const type = determineType(reservation);
+  const id = reservation[type];
+
+  queryAvailability(type, id)
+    .then(({ dateAvailability, maxGuestCount }) => {
+      const avail = checkAvail(reservation.guestCount, reservation.dates, dateAvailability, maxGuestCount);
+      if (avail) {
+        updateAvailabilities(type, id, avail)
+          .then(() => saveReservation(reservation))
+          .catch(err => console.error('Error updating availabilities', err));
+      }
+      return writeResponse(avail, reservation.userId, reservation[type]);
+    });
+};
 
 // Exports for testing
-export { assignReservationId, checkAvail, parseReservation, saveReservation };
+export { assignReservationId, checkAvail, parseReservation, saveReservation, updateAvailabilities, confirmAvailability };

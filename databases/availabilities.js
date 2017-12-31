@@ -44,7 +44,7 @@ const updateAvailability = (type, id, month, date, newAvailability) => {
   const updateObj = {};
   updateObj[`dateAvailability.${month}.${date}`] = newAvailability;
   if (type === 'rental') return Home.update({ rental: id }, { $set: updateObj });
-  if (type === 'exp') return Experience.update({ experience: id }, { $set: updateObj });
+  if (type === 'experience') return Experience.update({ experience: id }, { $set: updateObj });
 };
 
 export { Home, Experience, addAvailability, queryAvailability, updateAvailability };

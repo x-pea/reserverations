@@ -181,6 +181,7 @@ xdescribe('InfluxDB', () => {
           experienceShown: true,
           userID: 'f1808995-ccc-bacc-a2092af9796a',
           rental: 8219071282,
+          reservationId: '1214235',
         },
         fields: {
           dates: JSON.stringify({ 7: [8, 9, 10] }),
@@ -192,6 +193,7 @@ xdescribe('InfluxDB', () => {
         tags: {
           userID: 'c62fcb9-4aef-b071-13c404d865ed',
           rental: 23498032,
+          reservationId: '12435253',
         },
         fields: {
           dates: JSON.stringify({ 3: [1, 2, 3] }),
@@ -218,7 +220,7 @@ xdescribe('InfluxDB', () => {
   });
 });
 
-describe('Mass data generation into influxDB', () => {
+xdescribe('Mass data generation into influxDB', () => {
   const dbName = 'reservations';
 
   beforeEach(() => {
@@ -246,6 +248,7 @@ describe('Mass data generation into influxDB', () => {
       experienceShown: false,
       userID: 'f1808995-ccc-bacc-a2092af9796a',
       rental: 141251424,
+      reservationId: '12453rwekr2',
     },
     fields: {
       dates: JSON.stringify({ 7: [8, 9, 10] }),
@@ -259,6 +262,7 @@ describe('Mass data generation into influxDB', () => {
     tags: {
       userID: 'c62fcb9-4aef-b071-13c404d865ed',
       experience: 574584646,
+      reservationId: '12f32324',
     },
     fields: {
       dates: JSON.stringify({ 3: [23, 24, 25, 26, 27, 28] }),
@@ -395,7 +399,7 @@ xdescribe('MongoDb', () => {
     });
 
     it('should update the experience listing availability of date', (done) => {
-      updateAvailability('exp', sampleId, 1, 1, 3)
+      updateAvailability('experience', sampleId, 1, 1, 3)
         .then(res => expect(res.ok).to.equal(1))
         .then(() => queryAvailability('experience', sampleId))
         .then(entry => expect(entry.dateAvailability['1'][1]).to.equal(3))
@@ -407,16 +411,26 @@ xdescribe('MongoDb', () => {
 
 describe('clientWorker', () => {
   const sampleInput = {
-    dates: { 3: [1, 2, 3] },
+    dates: { 2: [28, 29], 3: [1, 2, 3] },
     userID: 'fasdjfk234',
     guestCount: 1,
     experienceShown: false,
     rental: 123024,
   };
 
-  const falseAvail = { 3: [null, 0, 3, 3, 0, 0] };
-  const trueAvail = { 3: [null, 4, 4, 3, 2, 1] };
-  const newAvail = { 3: [null, 3, 3, 2, 2, 1] };
+  const dbEntry = {
+    dates: { 2: [28, 29], 3: [1, 2, 3] },
+    guestCount: 1,
+    rental: 123024,
+  };
+
+  const fill = Array(27).fill(null);
+  fill[28] = 5;
+  fill[29] = 4;
+  const falseAvail = { 2: fill, 3: [null, 0, 3, 3, 0, 0] };
+  const trueAvail = { 2: fill, 3: [null, 4, 4, 3, 2, 1] };
+  const nullAvail = { 2: fill, 3: [null, null, null, 3, 2, 1] };
+  const newAvail = { 2: { 28: 4, 29: 3 }, 3: { 1: 3, 2: 3, 3: 2 } };
 
   describe('#assignReservationId', () => {
     it('should assign a reservationId utilizing userId and listingId', () => {
@@ -428,14 +442,34 @@ describe('clientWorker', () => {
 
   describe('#checkAvail', () => {
     it('should return false if listing is not available', () => {
-      const availability = checkAvail(sampleInput.guestCount, sampleInput.dates, falseAvail);
+      const availability = checkAvail(sampleInput.guestCount, sampleInput.dates, falseAvail, 4);
       expect(availability).to.be.false;
     });
+
     it('should return new availability if listing is available', () => {
-      const availability = checkAvail(sampleInput.guestCount, sampleInput.dates, trueAvail);
+      const availability = checkAvail(sampleInput.guestCount, sampleInput.dates, trueAvail, 4);
       expect(availability).to.be.an('object');
       expect(availability).to.eql(newAvail);
     });
+
+    it('should account for availabilities not yet defined', () => {
+      const availability = checkAvail(sampleInput.guestCount, sampleInput.dates, nullAvail, 4);
+      expect(availability).to.be.an('object');
+      expect(availability).to.eql(newAvail);
+    });
+  });
+
+  describe('#updateAvailability', () => {
+  //   before((done) => {
+  //     Home.addAvailability()
+  //   })
+  //   it('should update inventory with new availabilities', () => {
+  //
+  //   })
+  //   after((done) => {
+  //     Home.findOneAndRemove({ rental: sampleId })
+  //       .then(() => done());
+  //   });
   });
 });
 
