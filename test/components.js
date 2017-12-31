@@ -409,7 +409,7 @@ xdescribe('MongoDb', () => {
   });
 });
 
-describe('clientWorker', () => {
+xdescribe('clientWorker', () => {
   const sampleInput = {
     dates: { 2: [28, 29], 3: [1, 2, 3] },
     userID: 'fasdjfk234',
@@ -419,9 +419,9 @@ describe('clientWorker', () => {
   };
 
   const dbEntry = {
-    dates: { 2: [28, 29], 3: [1, 2, 3] },
-    guestCount: 1,
-    rental: 123024,
+    dateAvailability: { 1: [null, 5, 5, 2, 1], 2: [null, 3] },
+    maxGuestCount: 7,
+    rental: 12431424,
   };
 
   const fill = Array(27).fill(null);
@@ -474,51 +474,77 @@ describe('clientWorker', () => {
 });
 
 xdescribe('inventoryWorker', () => {
-  const sampleInput1 = {
+  const sampleInput = {
     blackoutDates: { 3: [3, 4, 5] },
     maxGuestCount: 7,
     rental: 78673467,
   };
 
-  const sampleOutput1 = {
-    dateAvailability: { 3: [null, undefined, undefined, 0, 0, 0] },
+  const sampleOutput = {
+    dateAvailability: {
+      1: [null],
+      2: [null],
+      3: [null, undefined, undefined, 0, 0, 0],
+      4: [null],
+      5: [null],
+      6: [null],
+      7: [null],
+      8: [null],
+      9: [null],
+      10: [null],
+      11: [null],
+      12: [null],
+    },
     maxGuestCount: 7,
     rental: 78673467,
   };
 
-  const sampleOutput2 = {
-    dateAvailability: { 1: [null, null, 0, 0] },
-    maxGuestCount: 3,
-    rental: 4687674,
+  const dbOutput = {
+    dateAvailability: {
+      1: [null],
+      2: [null],
+      3: [null, null, null, 0, 0, 0],
+      4: [null],
+      5: [null],
+      6: [null],
+      7: [null],
+      8: [null],
+      9: [null],
+      10: [null],
+      11: [null],
+      12: [null],
+    },
+    maxGuestCount: 7,
+    rental: 78673467,
   };
 
   describe('#translateDates', () => {
     it('should translate blackout dates to date availabilities', () => {
-      const actualMessage = translateDates(sampleInput1.blackoutDates);
-      expect(actualMessage).to.deep.eql(sampleOutput1.dateAvailability);
+      const actualMessage = translateDates(sampleInput.blackoutDates);
+      expect(actualMessage).to.deep.eql(sampleOutput.dateAvailability);
     });
   });
 
   describe('#transposeMessage', () => {
     it('should tranpose sampleInput with a dateAvailability property', () => {
-      const actualMessage = transposeMessage(sampleInput1);
-      expect(actualMessage).to.deep.eql(sampleOutput1);
+      const actualMessage = transposeMessage(sampleInput);
+      expect(actualMessage).to.deep.eql(sampleOutput);
     });
   });
 
   describe('#pollQueue', () => {
     before((done) => {
-      const testMessage = JSON.stringify(sampleOutput2);
+      const testMessage = JSON.stringify(sampleInput);
       sendMessage(testMessage, process.env.SQS_QUEUE_URL)
         .then(() => done())
         .catch(err => console.error('Failed to send test sqs message', err));
     });
 
     it('should poll messages from queue and store tranposed messages into database', (done) => {
-      queryAvailability('rental', 4687674)
+      queryAvailability('rental', 78673467)
         .then((res) => {
-          expect(res.dateAvailability).to.deep.equal(sampleOutput2.dateAvailability);
-          expect(res.maxGuestCount).to.equal(sampleOutput2.maxGuestCount);
+          expect(res.dateAvailability).to.deep.equal(dbOutput.dateAvailability);
+          expect(res.maxGuestCount).to.equal(dbOutput.maxGuestCount);
         })
         .then(() => done())
         .catch(err => console.error('Error polling & storing messages', err));

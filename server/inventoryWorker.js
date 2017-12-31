@@ -3,8 +3,10 @@ import Consumer from 'sqs-consumer';
 
 const translateDates = (blackoutDates) => {
   const translatedDates = {};
+  for (let i = 1; i < 13; i++) {
+    translatedDates[i] = [null];
+  }
   for (let month in blackoutDates) {
-    translatedDates[month] = [null];
     for (let date of blackoutDates[month]) {
       translatedDates[month][date] = 0;
     }
