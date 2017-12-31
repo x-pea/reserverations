@@ -14,7 +14,7 @@ const checkAvail = (guestCount, dates, availability, maxGuestCount) => {
     newAvail[month] = {};
     dates[month].forEach((date) => {
       let dateAvailability = availability[month][date];
-      if (dateAvailability === null) {
+      if (dateAvailability === null || undefined) {
         dateAvailability = maxGuestCount;
       }
       newAvail[month][date] = dateAvailability - guestCount;
@@ -66,8 +66,8 @@ const updateAvailabilities = (type, id, newAvailability) => {
   const months = Object.keys(newAvailability);
   months.forEach((month) => {
     const dates = Object.keys(newAvailability[month]);
-    newAvailability[month][dates].forEach((date) => {
-      updateAvailability(type, id, month, date, newAvailability[month][date]);
+    dates.forEach((date) => {
+      Promise.resolve(updateAvailability(type, id, month, date, newAvailability[month][date]))
     });
   });
 };

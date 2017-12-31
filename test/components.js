@@ -6,7 +6,7 @@ import Consumer from 'sqs-consumer';
 import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
 import { Home, Experience, addAvailability, queryAvailability, updateAvailability } from '../databases/availabilities';
 import { writePoints, createDatabase, influx } from '../databases/reservations';
-import { assignReservationId, checkAvail, parseReservation, saveReservation } from '../server/clientWorker';
+import { assignReservationId, checkAvail, updateAvailabilities, parseReservation, saveReservation } from '../server/clientWorker';
 import { translateDates, transposeMessage, pollQueue } from '../server/inventoryWorker';
 import { config } from 'dotenv';
 
@@ -25,14 +25,12 @@ xdescribe('SQS', () => {
           expect(results).to.be.an('object');
           expect(results).to.have.property('ResponseMetadata');
         })
-        .then(() => done())
-        .catch(err => console.error('Error creating a queue', err));
+        .catch(err => done(err));
     });
     it('should create a queue with the provided name', (done) => {
       createQ(qName)
         .then(results => expect(results.QueueUrl).to.include(qName))
-        .then(() => done())
-        .catch(err => console.error('Error creating a queue'));
+        .catch(err => done(err));
     })
   });
 
@@ -44,8 +42,7 @@ xdescribe('SQS', () => {
           expect(MessageId).to.be.a('string');
           expect(MD5OfMessageBody).to.be.a('string');
         })
-        .then(() => done())
-        .catch(err => console.error('Error sending message to queue', err))
+        .catch(err => done(err));
     });
   });
 
@@ -57,8 +54,7 @@ xdescribe('SQS', () => {
           expect(Messages[0].Body).to.include(testMessage);
           expect(Messages[0].MessageId).to.be.a('string');
         })
-        .then(() => done())
-        .catch(err => console.error('Error reading message from queue'))
+        .catch(err => done(err));
     });
 
     it('should delete read messages in queue', (done) => {
@@ -69,8 +65,7 @@ xdescribe('SQS', () => {
           expect(Messages).to.not.exist;
         })
         .then(() => deleteQ(testURL))
-        .then(() => done())
-        .catch(err => console.error('Error creating deleting messages from queue', err));
+        .catch(err => done(err));
     });
   });
 });
@@ -99,22 +94,10 @@ xdescribe('SQS-consumer', () => {
             expect(Messages).to.not.exist;
             sqsConsumer.stop();
           })
-          .then(() => done())
-          .catch(err => new Error('Error reading and deleting messages from queue'))
+          .catch(err => done(err));
       })
     });
   });
-
-  describe('read and transpose messages', () => {
-    it('should transpose each message', () => {
-    });
-  });
-
-  describe('', () => {
-    it('should store transposed messages into database', () => {
-    });
-  });
-
 });
 
 xdescribe('Data generator', () => {
@@ -168,8 +151,7 @@ xdescribe('InfluxDB', () => {
       createDatabase(dbName)
         .then(() => influx.getDatabaseNames())
         .then(names => expect(names.includes(dbName)).to.be.true)
-        .then(() => done())
-        .catch(err => console.error(err));
+        .catch(err => done(err));
     });
   });
 
@@ -214,8 +196,7 @@ xdescribe('InfluxDB', () => {
           expect(row).to.have.property('guestCount');
           expect(row).to.have.property('time');
         }))
-        .then(() => done())
-        .catch(err => console.error(err))
+        .catch(err => done(err));
     });
   });
 });
@@ -295,8 +276,7 @@ xdescribe('Mass data generation into influxDB', () => {
             expect(row).to.have.property('time');
           });
         })
-        .then(() => done())
-        .catch(err => console.error('Error saving reservations', err));
+        .catch(err => done(err));
     });
   });
 
@@ -314,7 +294,7 @@ xdescribe('Mass data generation into influxDB', () => {
       Promise.all(promises)
         .then(() => influx.query('select * from home, experience'))
         .then(rows => expect(rows.length).to.equal(10000))
-        .then(() => done());
+        .catch(err => done(err));
     });
   });
 });
@@ -339,6 +319,7 @@ xdescribe('MongoDb', () => {
       Experience.findOneAndRemove({ experience: sampleId })
         .then(() => Home.findOneAndRemove({ rental: sampleId }))
         .then(() => done())
+        .catch(err => console.log(err))
     });
 
     it('should add a new home listing', (done) => {
@@ -348,8 +329,7 @@ xdescribe('MongoDb', () => {
           expect(res).to.have.property('maxGuestCount');
           expect(res).to.have.property('rental');
         })
-        .then(() => done())
-        .catch(err => console.error('Error adding entry', err));
+        .catch(err => done(err));
     });
 
     it('should add a new experience listing', (done) => {
@@ -359,8 +339,7 @@ xdescribe('MongoDb', () => {
           expect(res).to.have.property('maxGuestCount');
           expect(res).to.have.property('experience');
         })
-        .then(() => done())
-        .catch(err => console.error('Error adding entry', err));
+        .catch(err => done(err));
     });
   });
 
@@ -372,8 +351,7 @@ xdescribe('MongoDb', () => {
           expect(res.maxGuestCount).to.equal(homeEntry.maxGuestCount);
           expect(res.rental).to.equal(homeEntry.rental);
         })
-        .then(() => done())
-        .catch(err => console.error('Error querying collection', err));
+        .catch(err => done(err));
     })
 
     it('should find experience listing by id', (done) => {
@@ -383,8 +361,7 @@ xdescribe('MongoDb', () => {
           expect(res.maxGuestCount).to.equal(expEntry.maxGuestCount);
           expect(res.rental).to.equal(expEntry.rental);
         })
-        .then(() => done())
-        .catch(err => console.error('Error querying collection', err));
+        .catch(err => done(err));
     })
   });
 
@@ -394,8 +371,7 @@ xdescribe('MongoDb', () => {
         .then(res => expect(res.ok).to.equal(1))
         .then(() => queryAvailability('rental', sampleId))
         .then(entry => expect(entry.dateAvailability['1'][1]).to.equal(3))
-        .then(() => done())
-        .catch(err => console.error('Error updating availabiility', err));
+        .catch(err => done(err));
     });
 
     it('should update the experience listing availability of date', (done) => {
@@ -403,25 +379,18 @@ xdescribe('MongoDb', () => {
         .then(res => expect(res.ok).to.equal(1))
         .then(() => queryAvailability('experience', sampleId))
         .then(entry => expect(entry.dateAvailability['1'][1]).to.equal(3))
-        .then(() => done())
-        .catch(err => console.error('Error updating availabiility', err));
+        .catch(err => done(err));
     });
   });
 });
 
-xdescribe('clientWorker', () => {
+describe('clientWorker', () => {
   const sampleInput = {
     dates: { 2: [28, 29], 3: [1, 2, 3] },
     userID: 'fasdjfk234',
     guestCount: 1,
     experienceShown: false,
     rental: 123024,
-  };
-
-  const dbEntry = {
-    dateAvailability: { 1: [null, 5, 5, 2, 1], 2: [null, 3] },
-    maxGuestCount: 7,
-    rental: 12431424,
   };
 
   const fill = Array(27).fill(null);
@@ -431,6 +400,25 @@ xdescribe('clientWorker', () => {
   const trueAvail = { 2: fill, 3: [null, 4, 4, 3, 2, 1] };
   const nullAvail = { 2: fill, 3: [null, null, null, 3, 2, 1] };
   const newAvail = { 2: { 28: 4, 29: 3 }, 3: { 1: 3, 2: 3, 3: 2 } };
+
+  const availabilityListing = {
+    dateAvailability: {
+      1: [null],
+      2: fill,
+      3: [null, 4, 4, 3, 2, 1],
+      4: [null],
+      5: [null],
+      6: [null],
+      7: [null],
+      8: [null],
+      9: [null],
+      10: [null],
+      11: [null],
+      12: [null],
+    },
+    maxGuestCount: 7,
+    rental: 123024,
+  };
 
   describe('#assignReservationId', () => {
     it('should assign a reservationId utilizing userId and listingId', () => {
@@ -459,17 +447,41 @@ xdescribe('clientWorker', () => {
     });
   });
 
-  describe('#updateAvailability', () => {
-  //   before((done) => {
-  //     Home.addAvailability()
-  //   })
-  //   it('should update inventory with new availabilities', () => {
-  //
-  //   })
-  //   after((done) => {
-  //     Home.findOneAndRemove({ rental: sampleId })
-  //       .then(() => done());
-  //   });
+  describe('#updateAvailabilities', () => {
+    const availability = checkAvail(
+      sampleInput.guestCount,
+      sampleInput.dates,
+      availabilityListing.dateAvailability,
+      availabilityListing.maxGuestCount,
+    );
+
+    before((done) => {
+      addAvailability(availabilityListing)
+        .then(() => {
+          updateAvailabilities('rental', availabilityListing.rental, availability);
+        })
+        .then(() => done())
+        .catch(err => console.error(err));
+    });
+
+    it('should update inventory with new availabilities', () => {
+      queryAvailability('rental', sampleInput.rental)
+        .then(({ dateAvailability }) => {
+          expect(dateAvailability['2'][28]).to.equal(4);
+          expect(dateAvailability['2'][29]).to.equal(3);
+          expect(dateAvailability['3'][1]).to.equal(3);
+          expect(dateAvailability['3'][2]).to.equal(3);
+          expect(dateAvailability['3'][3]).to.equal(2);
+          expect(dateAvailability['3'][4]).to.equal(2);
+          expect(dateAvailability['3'][5]).to.equal(1);
+        });
+    });
+
+    after((done) => {
+      Home.findOneAndRemove({ rental: availabilityListing.rental })
+        .then(() => done())
+        .catch(err => console.error(err));
+    });
   });
 });
 
@@ -537,17 +549,22 @@ xdescribe('inventoryWorker', () => {
       const testMessage = JSON.stringify(sampleInput);
       sendMessage(testMessage, process.env.SQS_QUEUE_URL)
         .then(() => done())
-        .catch(err => console.error('Failed to send test sqs message', err));
+        .catch(err => console.log(err));
     });
 
     it('should poll messages from queue and store tranposed messages into database', (done) => {
-      queryAvailability('rental', 78673467)
+      queryAvailability('rental', sampleInput.rental)
         .then((res) => {
           expect(res.dateAvailability).to.deep.equal(dbOutput.dateAvailability);
           expect(res.maxGuestCount).to.equal(dbOutput.maxGuestCount);
         })
+        .catch(err => done(err));
+    });
+
+    after((done) => {
+      Home.findOneAndRemove({ rental: sampleInput.rental })
         .then(() => done())
-        .catch(err => console.error('Error polling & storing messages', err));
+        .catch(err => console.log(err));
     });
   });
 });
