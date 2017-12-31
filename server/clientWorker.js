@@ -1,5 +1,5 @@
 import { writePoints } from '../databases/reservations';
-import { queryHome, queryExperience, updateAvailability } from '../databases/availabilities';
+import { queryAvailability, updateAvailability } from '../databases/availabilities';
 
 // load balancer worker:
 // message from client
@@ -9,9 +9,8 @@ import { queryHome, queryExperience, updateAvailability } from '../databases/ava
 // delete message
 
 // Confirmation availability for reservation
-const assignReservationId = (userId, listingId) => {
-  return `${userId.slice(0, 3)}${String(listingId).slice(0, 5)}`
-};
+const determineType = reservation => reservation.rental ? 'rental' : 'experience';
+const assignReservationId = (userId, listingId) => `${userId.slice(0, 3)}${String(listingId).slice(0, 5)}`;
 
 const checkAvail = (guestCount, dates, availability) => {
   const months = Object.keys(dates);
@@ -28,59 +27,32 @@ const checkAvail = (guestCount, dates, availability) => {
   return isAvailable ? availability : isAvailable;
 };
 
-const sendConfirmation = (availability) => {
+const writeResponse = (availability, userId, listingId) => {
   if (availability instanceof Object) {
     return {
-      availability: true,
-      reservationId: assignReservationId(),
+      available: true,
+      reservationId: assignReservationId(userId, listingId),
     };
   }
+  return { available: false };
 };
 
-const confirmAvailability = (reservation) => {
-  if (reservation.rental) {
-    queryHome(reservation.rental)
-      .then(({ dateAvailability }) => {
-        if (isAvailable(reservation.guestCount, reservation.dates, dateAvailability)) {
-          //
-        }
-      })
-  }
-  if (reservation.experience) {}
-}
-
-// Store Reservation
 const parseReservation = (reservation) => {
-  if ('rental' in reservation) {
-    return {
-      measurement: 'home',
-      tags: {
-        experienceShown: reservation.experienceShown,
-        userID: reservation.userID,
-        rental: reservation.rental,
-      },
-      fields: {
-        dates: JSON.stringify(reservation.dates),
-        guestCount: reservation.guestCount,
-        count: 1,
-      },
-    };
-  }
-
-  if ('experience' in reservation) {
-    return {
-      measurement: 'experience',
-      tags: {
-        userID: reservation.userID,
-        experience: reservation.experience,
-      },
-      fields: {
-        dates: JSON.stringify(reservation.dates),
-        guestCount: reservation.guestCount,
-        count: 1,
-      },
-    };
-  }
+  const type = determineType(reservation);
+  const entry = {
+    measurement: type,
+    tags: {
+      userID: reservation.userID,
+    },
+    fields: {
+      dates: JSON.stringify(reservation.dates),
+      guestCount: reservation.guestCount,
+      count: 1,
+    },
+  };
+  entry.tags[type] = reservation[type];
+  type === 'rental' ? entry.tags.experienceShown = reservation.experienceShown : null;
+  return entry;
 };
 
 // Transposes data and sends it to the database
@@ -90,6 +62,19 @@ const saveReservation = (reservations) => {
   });
   return writePoints(reservationEntries, 'reservations');
 };
+
+// const x = (reservation) => {
+//   const type = determineType(reservation);
+//
+//   queryAvailability(reservation[type])
+//   .then(({ dateAvailability }) => {
+//     const avail = checkAvail(reservation.guestCount, reservation.dates, dateAvailability);
+//     const confirmation = writeResponse(avail, reservation.userId, reservation[type]);
+//     // resepond to client with confirmation
+//     // update database with new availability
+//     saveReservation(reservation); // returns promise
+//   });
+// }
 
 // Exports for testing
 export { assignReservationId, checkAvail, parseReservation, saveReservation };

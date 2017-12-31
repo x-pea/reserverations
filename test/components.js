@@ -4,7 +4,7 @@ import Promise from 'bluebird';
 import { createQ, readMessage, deleteMessage, sendMessage, deleteQ } from '../server/sqs';
 import Consumer from 'sqs-consumer';
 import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
-import { Home, Experience, addAvailability, queryHome, queryExperience, updateAvailability } from '../databases/availabilities';
+import { Home, Experience, addAvailability, queryAvailability, updateAvailability } from '../databases/availabilities';
 import { writePoints, createDatabase, influx } from '../databases/reservations';
 import { assignReservationId, checkAvail, parseReservation, saveReservation } from '../server/clientWorker';
 import { translateDates, transposeMessage, pollQueue } from '../server/inventoryWorker';
@@ -176,7 +176,7 @@ xdescribe('InfluxDB', () => {
   describe('#writePoints', () => {
     const entries = [
       {
-        measurement: 'home',
+        measurement: 'rental',
         tags: {
           experienceShown: true,
           userID: 'f1808995-ccc-bacc-a2092af9796a',
@@ -218,11 +218,11 @@ xdescribe('InfluxDB', () => {
   });
 });
 
-xdescribe('Mass data generation into influxDB', () => {
+describe('Mass data generation into influxDB', () => {
   const dbName = 'reservations';
 
   beforeEach(() => {
-    influx.dropMeasurement('home', dbName);
+    influx.dropMeasurement('rental', dbName);
     influx.dropMeasurement('experience', dbName);
   });
 
@@ -241,7 +241,7 @@ xdescribe('Mass data generation into influxDB', () => {
   };
 
   const expectedRentalOutput = {
-    measurement: 'home',
+    measurement: 'rental',
     tags: {
       experienceShown: false,
       userID: 'f1808995-ccc-bacc-a2092af9796a',
@@ -362,7 +362,7 @@ xdescribe('MongoDb', () => {
 
   describe('#queryDatabase', () => {
     it('should find home listing by id', (done) => {
-      queryHome(sampleId)
+      queryAvailability('rental', sampleId)
         .then((res) => {
           expect(res.dateAvailability).to.deep.equal(homeEntry.dateAvailability);
           expect(res.maxGuestCount).to.equal(homeEntry.maxGuestCount);
@@ -373,7 +373,7 @@ xdescribe('MongoDb', () => {
     })
 
     it('should find experience listing by id', (done) => {
-      queryExperience(sampleId)
+      queryAvailability('experience', sampleId)
         .then((res) => {
           expect(res.dateAvailability).to.deep.equal(expEntry.dateAvailability);
           expect(res.maxGuestCount).to.equal(expEntry.maxGuestCount);
@@ -386,9 +386,9 @@ xdescribe('MongoDb', () => {
 
   describe('#updateAvailability', () => {
     it('should update the home listing availability of date', (done) => {
-      updateAvailability('home', sampleId, 1, 1, 3)
+      updateAvailability('rental', sampleId, 1, 1, 3)
         .then(res => expect(res.ok).to.equal(1))
-        .then(() => queryHome(sampleId))
+        .then(() => queryAvailability('rental', sampleId))
         .then(entry => expect(entry.dateAvailability['1'][1]).to.equal(3))
         .then(() => done())
         .catch(err => console.error('Error updating availabiility', err));
@@ -397,7 +397,7 @@ xdescribe('MongoDb', () => {
     it('should update the experience listing availability of date', (done) => {
       updateAvailability('exp', sampleId, 1, 1, 3)
         .then(res => expect(res.ok).to.equal(1))
-        .then(() => queryExperience(sampleId))
+        .then(() => queryAvailability('experience', sampleId))
         .then(entry => expect(entry.dateAvailability['1'][1]).to.equal(3))
         .then(() => done())
         .catch(err => console.error('Error updating availabiility', err));
@@ -481,7 +481,7 @@ xdescribe('inventoryWorker', () => {
     });
 
     it('should poll messages from queue and store tranposed messages into database', (done) => {
-      queryHome(4687674)
+      queryAvailability('rental', 4687674)
         .then((res) => {
           expect(res.dateAvailability).to.deep.equal(sampleOutput2.dateAvailability);
           expect(res.maxGuestCount).to.equal(sampleOutput2.maxGuestCount);
