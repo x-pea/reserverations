@@ -1,4 +1,7 @@
 import Influx from 'influx';
+import { config } from 'dotenv';
+
+config();
 
 const influx = new Influx.InfluxDB(process.env.INFLUX);
 
