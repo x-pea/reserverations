@@ -1,5 +1,8 @@
 import { addAvailability } from '../databases/availabilities';
 import Consumer from 'sqs-consumer';
+import { config } from 'dotenv';
+
+config();
 
 const translateDates = (blackoutDates) => {
   const translatedDates = {};

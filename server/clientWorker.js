@@ -36,12 +36,29 @@ const writeResponse = (availability, userId, listingId) => {
   return { available: false };
 };
 
+// updated availability that will be sent to inventory
+const writeUpdate = (type, listingId, isAvailable, availability) =>  {
+  const updatedAvailability = {
+    dates: {},
+  };
+  updatedAvailability[type] = listingId;
+  const months = Object.keys(isAvailable);
+
+  months.forEach((month) => {
+    updatedAvailability.dates[month] = availability[month];
+  });
+  return updatedAvailability;
+  // send to inventory depending on type
+  // type === 'rental' ? /rentalsqs : /experiencesqs
+};
+
 const parseReservation = (reservation) => {
   const type = determineType(reservation);
   const entry = {
     measurement: type,
     tags: {
-      userID: reservation.userID,
+      userId: reservation.userId,
+      reservationId: assignReservationId(reservation.userId, reservation[type]),
     },
     fields: {
       dates: JSON.stringify(reservation.dates),
@@ -50,7 +67,9 @@ const parseReservation = (reservation) => {
     },
   };
   entry.tags[type] = reservation[type];
-  type === 'rental' ? entry.tags.experienceShown = reservation.experienceShown : null;
+  if (type === 'rental') {
+    entry.tags.experienceShown = reservation.experienceShown;
+  }
   return entry;
 };
 
@@ -76,15 +95,21 @@ const confirmAvailability = (reservation) => {
   const type = determineType(reservation);
   const id = reservation[type];
 
-  queryAvailability(type, id)
+  return queryAvailability(type, id)
     .then(({ dateAvailability, maxGuestCount }) => {
-      const avail = checkAvail(reservation.guestCount, reservation.dates, dateAvailability, maxGuestCount);
-      if (avail) {
-        updateAvailabilities(type, id, avail)
-          .then(() => saveReservation(reservation))
+      const isAvailable = checkAvail(
+        reservation.guestCount,
+        reservation.dates,
+        dateAvailability,
+        maxGuestCount
+      );
+      if (isAvailable) {
+        updateAvailabilities(type, id, isAvailable)
+        saveReservation([reservation])
+          .then(() => writeUpdate(type, reservation[type], isAvailable, dateAvailability))
           .catch(err => console.error('Error updating availabilities', err));
       }
-      return writeResponse(avail, reservation.userId, reservation[type]);
+      return writeResponse(isAvailable, reservation.userId, reservation[type]);
     });
 };
 

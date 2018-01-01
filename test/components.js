@@ -1,14 +1,17 @@
 import assert from 'assert';
 import { expect } from 'chai';
 import Promise from 'bluebird';
-import { createQ, readMessage, deleteMessage, sendMessage, deleteQ } from '../server/sqs';
 import Consumer from 'sqs-consumer';
-import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
-import { Home, Experience, addAvailability, queryAvailability, updateAvailability } from '../databases/availabilities';
+import { translateDates, transposeMessage } from '../server/inventoryWorker';
 import { writePoints, createDatabase, influx } from '../databases/reservations';
-import { assignReservationId, checkAvail, updateAvailabilities, parseReservation, saveReservation } from '../server/clientWorker';
-import { translateDates, transposeMessage, pollQueue } from '../server/inventoryWorker';
+import { createClientInput, createInventoryInput, hostOrExp } from '../data-generator/data-gen';
 import { config } from 'dotenv';
+import { createQ, readMessage, deleteMessage,
+  sendMessage, deleteQ } from '../server/sqs';
+import { Rental, Experience, addAvailability,
+  queryAvailability, updateAvailability } from '../databases/availabilities';
+import { assignReservationId, checkAvail, updateAvailabilities, parseReservation,
+  saveReservation, confirmAvailability } from '../server/clientWorker';
 
 config();
 
@@ -25,12 +28,14 @@ xdescribe('SQS', () => {
           expect(results).to.be.an('object');
           expect(results).to.have.property('ResponseMetadata');
         })
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     });
     it('should create a queue with the provided name', (done) => {
       createQ(qName)
         .then(results => expect(results.QueueUrl).to.include(qName))
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     })
   });
 
@@ -42,7 +47,8 @@ xdescribe('SQS', () => {
           expect(MessageId).to.be.a('string');
           expect(MD5OfMessageBody).to.be.a('string');
         })
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     });
   });
 
@@ -54,7 +60,8 @@ xdescribe('SQS', () => {
           expect(Messages[0].Body).to.include(testMessage);
           expect(Messages[0].MessageId).to.be.a('string');
         })
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     });
 
     it('should delete read messages in queue', (done) => {
@@ -65,7 +72,8 @@ xdescribe('SQS', () => {
           expect(Messages).to.not.exist;
         })
         .then(() => deleteQ(testURL))
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     });
   });
 });
@@ -94,7 +102,8 @@ xdescribe('SQS-consumer', () => {
             expect(Messages).to.not.exist;
             sqsConsumer.stop();
           })
-          .catch(err => done(err));
+          .then(() => done())
+          .catch(err => console.error(err));
       })
     });
   });
@@ -108,7 +117,7 @@ xdescribe('Data generator', () => {
     it('should return a rental entry with properties', () => {
       expect(rentalReservation).to.be.an('object');
       expect(rentalReservation.dates).to.be.an('object');
-      expect(rentalReservation.userID).to.be.a('string');
+      expect(rentalReservation.userId).to.be.a('string');
       expect(rentalReservation.guestCount).to.be.a('number');
       expect(rentalReservation).to.have.property('rental');
       expect(rentalReservation.experienceShown).to.be.a('boolean');
@@ -117,7 +126,7 @@ xdescribe('Data generator', () => {
     it('should return an experience entry with properties', () => {
       expect(experienceReservation).to.be.an('object');
       expect(experienceReservation.dates).to.be.an('object');
-      expect(experienceReservation.userID).to.be.a('string');
+      expect(experienceReservation.userId).to.be.a('string');
       expect(experienceReservation.guestCount).to.be.a('number');
       expect(experienceReservation).to.have.property('experience');
     });
@@ -151,7 +160,8 @@ xdescribe('InfluxDB', () => {
       createDatabase(dbName)
         .then(() => influx.getDatabaseNames())
         .then(names => expect(names.includes(dbName)).to.be.true)
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     });
   });
 
@@ -161,7 +171,7 @@ xdescribe('InfluxDB', () => {
         measurement: 'rental',
         tags: {
           experienceShown: true,
-          userID: 'f1808995-ccc-bacc-a2092af9796a',
+          userId: 'f1808995-ccc-bacc-a2092af9796a',
           rental: 8219071282,
           reservationId: '1214235',
         },
@@ -173,7 +183,7 @@ xdescribe('InfluxDB', () => {
       {
         measurement: 'experience',
         tags: {
-          userID: 'c62fcb9-4aef-b071-13c404d865ed',
+          userId: 'c62fcb9-4aef-b071-13c404d865ed',
           rental: 23498032,
           reservationId: '12435253',
         },
@@ -186,17 +196,19 @@ xdescribe('InfluxDB', () => {
 
     it('should write points into the database', (done) => {
       writePoints(entries, dbName)
-        .then(() => influx.query(`select * from home where experienceShown='true'`))
+        .then(() => influx.query(`select * from rental where experienceShown='true'`))
         .then(rows => rows.forEach((row) => {
           expect(row).to.be.an('object');
           expect(row.experienceShown).to.equal('true');
-          expect(row).to.have.property('userID');
+          expect(row).to.have.property('userId');
           expect(row).to.have.property('rental');
           expect(row).to.have.property('dates');
           expect(row).to.have.property('guestCount');
           expect(row).to.have.property('time');
+          expect(row).to.have.property('reservationId');
         }))
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     });
   });
 });
@@ -211,14 +223,14 @@ xdescribe('Mass data generation into influxDB', () => {
 
   const rentalInput = {
     dates: { 7: [8, 9, 10] },
-    userID: 'f1808995-ccc-bacc-a2092af9796a',
+    userId: 'f1808995-ccc-bacc-a2092af9796a',
     guestCount: 1,
     experienceShown: false,
     rental: 141251424,
   };
   const experienceInput = {
     dates: { 3: [23, 24, 25, 26, 27, 28] },
-    userID: 'c62fcb9-4aef-b071-13c404d865ed',
+    userId: 'c62fcb9-4aef-b071-13c404d865ed',
     guestCount: 3,
     experience: 574584646,
   };
@@ -227,7 +239,7 @@ xdescribe('Mass data generation into influxDB', () => {
     measurement: 'rental',
     tags: {
       experienceShown: false,
-      userID: 'f1808995-ccc-bacc-a2092af9796a',
+      userId: 'f1808995-ccc-bacc-a2092af9796a',
       rental: 141251424,
       reservationId: '12453rwekr2',
     },
@@ -241,7 +253,7 @@ xdescribe('Mass data generation into influxDB', () => {
   const expectedExperienceOutput = {
     measurement: 'experience',
     tags: {
-      userID: 'c62fcb9-4aef-b071-13c404d865ed',
+      userId: 'c62fcb9-4aef-b071-13c404d865ed',
       experience: 574584646,
       reservationId: '12f32324',
     },
@@ -266,14 +278,15 @@ xdescribe('Mass data generation into influxDB', () => {
   describe('#saveReservation', () => {
     it('should transpose a list of reservation entries and save them to influxDB', (done) => {
       saveReservation([rentalInput, experienceInput])
-        .then(() => influx.query(`select * from home where experienceShown='false'`))
+        .then(() => influx.query(`select * from rental where experienceShown='false'`))
         .then((rows) => {
           rows.forEach((row) => {
-            expect(row).to.have.property('userID');
+            expect(row).to.have.property('userId');
             expect(row).to.have.property('rental');
             expect(row).to.have.property('dates');
             expect(row).to.have.property('guestCount');
             expect(row).to.have.property('time');
+            expect(row).to.have.property('reservationId');
           });
         })
         .catch(err => done(err));
@@ -292,15 +305,16 @@ xdescribe('Mass data generation into influxDB', () => {
         promises.push(saveReservation(storage));
       }
       Promise.all(promises)
-        .then(() => influx.query('select * from home, experience'))
+        .then(() => influx.query('select * from rental, experience'))
         .then(rows => expect(rows.length).to.equal(10000))
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     });
   });
 });
 
 xdescribe('MongoDb', () => {
-  const homeEntry = {
+  const rentalEntry = {
     dateAvailability: { 1: [null, 5, 5, 2, 1], 2: [null, 3] },
     maxGuestCount: 7,
     rental: 12431424
@@ -317,19 +331,20 @@ xdescribe('MongoDb', () => {
   describe('#addAvailability', () => {
     before((done) => {
       Experience.findOneAndRemove({ experience: sampleId })
-        .then(() => Home.findOneAndRemove({ rental: sampleId }))
+        .then(() => Rental.findOneAndRemove({ rental: sampleId }))
         .then(() => done())
-        .catch(err => console.log(err))
+        .catch(err => console.error(err))
     });
 
-    it('should add a new home listing', (done) => {
-      addAvailability(homeEntry)
+    it('should add a new rental listing', (done) => {
+      addAvailability(rentalEntry)
         .then((res) => {
           expect(res.dateAvailability).to.be.an('object');
           expect(res).to.have.property('maxGuestCount');
           expect(res).to.have.property('rental');
         })
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     });
 
     it('should add a new experience listing', (done) => {
@@ -339,19 +354,21 @@ xdescribe('MongoDb', () => {
           expect(res).to.have.property('maxGuestCount');
           expect(res).to.have.property('experience');
         })
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     });
   });
 
   describe('#queryDatabase', () => {
-    it('should find home listing by id', (done) => {
+    it('should find rental listing by id', (done) => {
       queryAvailability('rental', sampleId)
         .then((res) => {
-          expect(res.dateAvailability).to.deep.equal(homeEntry.dateAvailability);
-          expect(res.maxGuestCount).to.equal(homeEntry.maxGuestCount);
-          expect(res.rental).to.equal(homeEntry.rental);
+          expect(res.dateAvailability).to.deep.equal(rentalEntry.dateAvailability);
+          expect(res.maxGuestCount).to.equal(rentalEntry.maxGuestCount);
+          expect(res.rental).to.equal(rentalEntry.rental);
         })
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     })
 
     it('should find experience listing by id', (done) => {
@@ -361,17 +378,19 @@ xdescribe('MongoDb', () => {
           expect(res.maxGuestCount).to.equal(expEntry.maxGuestCount);
           expect(res.rental).to.equal(expEntry.rental);
         })
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     })
   });
 
   describe('#updateAvailability', () => {
-    it('should update the home listing availability of date', (done) => {
+    it('should update the rental listing availability of date', (done) => {
       updateAvailability('rental', sampleId, 1, 1, 3)
         .then(res => expect(res.ok).to.equal(1))
         .then(() => queryAvailability('rental', sampleId))
         .then(entry => expect(entry.dateAvailability['1'][1]).to.equal(3))
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     });
 
     it('should update the experience listing availability of date', (done) => {
@@ -379,7 +398,8 @@ xdescribe('MongoDb', () => {
         .then(res => expect(res.ok).to.equal(1))
         .then(() => queryAvailability('experience', sampleId))
         .then(entry => expect(entry.dateAvailability['1'][1]).to.equal(3))
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     });
   });
 });
@@ -387,10 +407,27 @@ xdescribe('MongoDb', () => {
 describe('clientWorker', () => {
   const sampleInput = {
     dates: { 2: [28, 29], 3: [1, 2, 3] },
-    userID: 'fasdjfk234',
+    userId: 'fasdjfk234',
     guestCount: 1,
     experienceShown: false,
-    rental: 123024,
+    rental: '123024',
+  };
+
+  const falsyInput = {
+    dates: { 2: [28, 29], 3: [1, 2, 3] },
+    userId: 'fasdjfk234',
+    guestCount: 5,
+    experienceShown: false,
+    rental: '123024',
+  };
+
+  const reservationEntry = {
+    dates: { 2: [28, 29], 3: [1, 2, 3] },
+    userId: 'fasdjfk234',
+    guestCount: 1,
+    experienceShown: false,
+    rental: '123024',
+    reservationId: '12f32324',
   };
 
   const fill = Array(27).fill(null);
@@ -420,15 +457,15 @@ describe('clientWorker', () => {
     rental: 123024,
   };
 
-  describe('#assignReservationId', () => {
+  xdescribe('#assignReservationId', () => {
     it('should assign a reservationId utilizing userId and listingId', () => {
-      const reservationId = assignReservationId(sampleInput.userID, sampleInput.rental);
-      expect(reservationId.slice(0, 3)).to.equal(sampleInput.userID.slice(0, 3));
+      const reservationId = assignReservationId(sampleInput.userId, sampleInput.rental);
+      expect(reservationId.slice(0, 3)).to.equal(sampleInput.userId.slice(0, 3));
       expect(reservationId.slice(3)).to.equal(String(sampleInput.rental).slice(0, 5));
     });
   });
 
-  describe('#checkAvail', () => {
+  xdescribe('#checkAvail', () => {
     it('should return false if listing is not available', () => {
       const availability = checkAvail(sampleInput.guestCount, sampleInput.dates, falseAvail, 4);
       expect(availability).to.be.false;
@@ -447,7 +484,7 @@ describe('clientWorker', () => {
     });
   });
 
-  describe('#updateAvailabilities', () => {
+  xdescribe('#updateAvailabilities', () => {
     const availability = checkAvail(
       sampleInput.guestCount,
       sampleInput.dates,
@@ -457,9 +494,7 @@ describe('clientWorker', () => {
 
     before((done) => {
       addAvailability(availabilityListing)
-        .then(() => {
-          updateAvailabilities('rental', availabilityListing.rental, availability);
-        })
+        .then(() => updateAvailabilities('rental', availabilityListing.rental, availability))
         .then(() => done())
         .catch(err => console.error(err));
     });
@@ -478,7 +513,64 @@ describe('clientWorker', () => {
     });
 
     after((done) => {
-      Home.findOneAndRemove({ rental: availabilityListing.rental })
+      Rental.findOneAndRemove({ rental: availabilityListing.rental })
+        .then(() => done())
+        .catch(err => console.error(err));
+    });
+  });
+
+  describe('#confirmAvailability', () => {
+    let response;
+    let falsyResponse;
+
+    before((done) => {
+      addAvailability(availabilityListing)
+        .then(() => confirmAvailability(sampleInput))
+        .then((res) => { response = res; })
+        .then(() => confirmAvailability(falsyInput))
+        .then((res) => { falsyResponse = res; })
+        .then(() => done())
+        .catch(err => console.error(err));
+    });
+
+    it('should save reservation to influxdb if available', () => {
+      influx.query(`select * from rental where experienceShown='false'`)
+        .then((rows) => {
+          expect(rows.length).to.equal(1);
+          expect(rows[0].userId).to.have.equal(reservationEntry.userId);
+          expect(rows[0].rental).to.have.equal(reservationEntry.rental);
+          expect(JSON.parse(rows[0].dates)).to.have.deep.eql(reservationEntry.dates);
+          expect(rows[0].guestCount).to.have.equal(reservationEntry.guestCount);
+          expect(rows[0]).to.have.property('time');
+          expect(rows[0]).to.have.property('count');
+        });
+    });
+
+    it('should update listing availability in mongodb if available', () => {
+      queryAvailability('rental', sampleInput.rental)
+        .then(({ dateAvailability }) => {
+          expect(dateAvailability['2'][28]).to.equal(4);
+          expect(dateAvailability['2'][29]).to.equal(3);
+          expect(dateAvailability['3'][1]).to.equal(3);
+          expect(dateAvailability['3'][2]).to.equal(3);
+          expect(dateAvailability['3'][3]).to.equal(2);
+          expect(dateAvailability['3'][4]).to.equal(2);
+          expect(dateAvailability['3'][5]).to.equal(1);
+        });
+    });
+
+    it('should return a response with a reservation id if available', () => {
+      expect(response).to.have.property('reservationId');
+    });
+
+    it('should return false if listing is not available', () => {
+      expect(falsyResponse.available).to.be.false;
+    });
+
+    after((done) => {
+      influx.dropMeasurement('rental', 'reservations');
+      influx.dropMeasurement('experience', 'reservations');
+      Rental.findOneAndRemove({ rental: availabilityListing.rental })
         .then(() => done())
         .catch(err => console.error(err));
     });
@@ -549,7 +641,7 @@ xdescribe('inventoryWorker', () => {
       const testMessage = JSON.stringify(sampleInput);
       sendMessage(testMessage, process.env.SQS_QUEUE_URL)
         .then(() => done())
-        .catch(err => console.log(err));
+        .catch(err => console.error(err));
     });
 
     it('should poll messages from queue and store tranposed messages into database', (done) => {
@@ -558,13 +650,14 @@ xdescribe('inventoryWorker', () => {
           expect(res.dateAvailability).to.deep.equal(dbOutput.dateAvailability);
           expect(res.maxGuestCount).to.equal(dbOutput.maxGuestCount);
         })
-        .catch(err => done(err));
+        .then(() => done())
+        .catch(err => console.error(err));
     });
 
     after((done) => {
-      Home.findOneAndRemove({ rental: sampleInput.rental })
+      Rental.findOneAndRemove({ rental: sampleInput.rental })
         .then(() => done())
-        .catch(err => console.log(err));
+        .catch(err => console.error(err));
     });
   });
 });

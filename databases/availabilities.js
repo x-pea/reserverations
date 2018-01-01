@@ -1,33 +1,36 @@
 import mongoose from 'mongoose';
+import { config } from 'dotenv';
+
+config();
 
 mongoose.connect(process.env.MONGO);
 const { Schema } = mongoose;
 
-const homeListing = new Schema({
+const rentalListing = new Schema({
   dateAvailability: Schema.Types.Mixed,
   maxGuestCount: Number,
-  rental: { type: Number, index: { unique: true } },
+  rental: { type: String, index: { unique: true } },
 });
 
 const expListing = new Schema({
   dateAvailability: Schema.Types.Mixed,
   maxGuestCount: Number,
-  experience: { type: Number, index: { unique: true } },
+  experience: { type: String, index: { unique: true } },
 });
 
-const Home = mongoose.model('Home', homeListing);
+const Rental = mongoose.model('Rental', rentalListing);
 const Experience = mongoose.model('Experience', expListing);
 
 const queryAvailability = (type, id) => {
   if (type === 'rental') {
-    return Home.findOne({ rental: id });
+    return Rental.findOne({ rental: id });
   }
   return Experience.findOne({ experience: id });
 };
 
 const addAvailability = (listing) => {
   if (listing.rental) {
-    return new Home({
+    return new Rental({
       dateAvailability: listing.dateAvailability,
       maxGuestCount: listing.maxGuestCount,
       rental: listing.rental,
@@ -43,8 +46,8 @@ const addAvailability = (listing) => {
 const updateAvailability = (type, id, month, date, newAvailability) => {
   const updateObj = {};
   updateObj[`dateAvailability.${month}.${date}`] = newAvailability;
-  if (type === 'rental') return Home.update({ rental: id }, { $set: updateObj });
+  if (type === 'rental') return Rental.update({ rental: id }, { $set: updateObj });
   if (type === 'experience') return Experience.update({ experience: id }, { $set: updateObj });
 };
 
-export { Home, Experience, addAvailability, queryAvailability, updateAvailability };
+export { Rental, Experience, addAvailability, queryAvailability, updateAvailability };
